@@ -87,9 +87,6 @@ pub fn generate_impl(
     fields: &[FieldInfo],
     config: &StructibleConfig,
 ) -> TokenStream {
-    let field_enum = field_enum_name(struct_name);
-    let value_enum = value_enum_name(struct_name);
-
     let constructor = generate_constructor(struct_name, fields, config);
     let getters = generate_getters(struct_name, fields);
     let getters_mut = generate_getters_mut(struct_name, fields);
@@ -104,22 +101,7 @@ pub fn generate_impl(
             #(#setters)*
             #(#removers)*
 
-            /// Returns a reference to the value for the given field.
-            pub fn get(&self, field: &#field_enum) -> Option<&#value_enum> {
-                self.inner.get(field)
-            }
-
-            /// Inserts a value, returning the previous value if present.
-            pub fn insert(&mut self, field: #field_enum, value: #value_enum) -> Option<#value_enum> {
-                self.inner.insert(field, value)
-            }
-
-            /// Returns true if the field is present in the map.
-            pub fn contains(&self, field: &#field_enum) -> bool {
-                self.inner.contains_key(field)
-            }
-
-            /// Returns the number of fields present in the map.
+            /// Returns the number of fields currently present.
             pub fn len(&self) -> usize {
                 self.inner.len()
             }
@@ -127,11 +109,6 @@ pub fn generate_impl(
             /// Returns true if no fields are present.
             pub fn is_empty(&self) -> bool {
                 self.inner.is_empty()
-            }
-
-            /// Iterates over all present field-value pairs.
-            pub fn iter(&self) -> impl Iterator<Item = (&#field_enum, &#value_enum)> {
-                self.inner.iter()
             }
         }
     }
