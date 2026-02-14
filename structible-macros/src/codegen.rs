@@ -177,10 +177,12 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
             let name = &f.name;
             let variant = to_pascal_case(name);
 
+            let vis = &f.vis;
+
             if f.is_optional {
                 let inner_ty = &f.inner_ty;
                 quote! {
-                    pub fn #name(&self) -> Option<&#inner_ty> {
+                    #vis fn #name(&self) -> Option<&#inner_ty> {
                         match self.inner.get(&#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => Some(v),
                             _ => None,
@@ -190,7 +192,7 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
             } else {
                 let ty = &f.ty;
                 quote! {
-                    pub fn #name(&self) -> &#ty {
+                    #vis fn #name(&self) -> &#ty {
                         match self.inner.get(&#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => v,
                             _ => panic!("required field `{}` not present", stringify!(#name)),
@@ -212,11 +214,12 @@ fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenS
             let name = &f.name;
             let getter_mut_name = format_ident!("{}_mut", name);
             let variant = to_pascal_case(name);
+            let vis = &f.vis;
 
             if f.is_optional {
                 let inner_ty = &f.inner_ty;
                 quote! {
-                    pub fn #getter_mut_name(&mut self) -> Option<&mut #inner_ty> {
+                    #vis fn #getter_mut_name(&mut self) -> Option<&mut #inner_ty> {
                         match self.inner.get_mut(&#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => Some(v),
                             _ => None,
@@ -226,7 +229,7 @@ fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenS
             } else {
                 let ty = &f.ty;
                 quote! {
-                    pub fn #getter_mut_name(&mut self) -> &mut #ty {
+                    #vis fn #getter_mut_name(&mut self) -> &mut #ty {
                         match self.inner.get_mut(&#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => v,
                             _ => panic!("required field `{}` not present", stringify!(#name)),
@@ -248,11 +251,12 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
             let name = &f.name;
             let setter_name = format_ident!("set_{}", name);
             let variant = to_pascal_case(name);
+            let vis = &f.vis;
 
             if f.is_optional {
                 let inner_ty = &f.inner_ty;
                 quote! {
-                    pub fn #setter_name(&mut self, value: Option<#inner_ty>) {
+                    #vis fn #setter_name(&mut self, value: Option<#inner_ty>) {
                         match value {
                             Some(v) => {
                                 self.inner.insert(#field_enum::#variant, #value_enum::#variant(v));
@@ -266,7 +270,7 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
             } else {
                 let ty = &f.ty;
                 quote! {
-                    pub fn #setter_name(&mut self, value: #ty) {
+                    #vis fn #setter_name(&mut self, value: #ty) {
                         self.inner.insert(#field_enum::#variant, #value_enum::#variant(value));
                     }
                 }
@@ -288,10 +292,11 @@ fn generate_removers(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStre
             let remover_name = format_ident!("remove_{}", name);
             let variant = to_pascal_case(name);
             let inner_ty = &f.inner_ty;
+            let vis = &f.vis;
 
             quote! {
                 /// Removes the field and returns the value if it was present.
-                pub fn #remover_name(&mut self) -> Option<#inner_ty> {
+                #vis fn #remover_name(&mut self) -> Option<#inner_ty> {
                     match self.inner.remove(&#field_enum::#variant) {
                         Some(#value_enum::#variant(v)) => Some(v),
                         _ => None,
