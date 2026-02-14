@@ -29,6 +29,38 @@ pub struct StructibleConfig {
 
 impl Parse for StructibleConfig {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        // Default to HashMap if no arguments provided
+        if input.is_empty() {
+            return Ok(StructibleConfig {
+                backing: BackingType::HashMap,
+            });
+        }
+
+        // Try to parse as a shorthand (just the type name)
+        let fork = input.fork();
+        if let Ok(ident) = fork.parse::<Ident>() {
+            // Check if this is followed by `=` (key-value) or nothing/comma (shorthand)
+            if !fork.peek(Token![=]) {
+                let backing = match ident.to_string().as_str() {
+                    "HashMap" => BackingType::HashMap,
+                    "BTreeMap" => BackingType::BTreeMap,
+                    other => {
+                        return Err(syn::Error::new(
+                            ident.span(),
+                            format!(
+                                "unknown backing type `{}`, expected `HashMap` or `BTreeMap`",
+                                other
+                            ),
+                        ));
+                    }
+                };
+                // Consume the identifier
+                input.parse::<Ident>()?;
+                return Ok(StructibleConfig { backing });
+            }
+        }
+
+        // Parse as key-value pairs
         let mut backing = None;
 
         let pairs = Punctuated::<MetaItem, Token![,]>::parse_terminated(input)?;
@@ -42,7 +74,10 @@ impl Parse for StructibleConfig {
                         other => {
                             return Err(syn::Error::new(
                                 item.value.span(),
-                                format!("unknown backing type `{}`, expected `HashMap` or `BTreeMap`", other),
+                                format!(
+                                    "unknown backing type `{}`, expected `HashMap` or `BTreeMap`",
+                                    other
+                                ),
                             ));
                         }
                     });
@@ -56,9 +91,8 @@ impl Parse for StructibleConfig {
             }
         }
 
-        let backing = backing.ok_or_else(|| {
-            syn::Error::new(input.span(), "missing required attribute `backing`")
-        })?;
+        // Default to HashMap if backing was not specified
+        let backing = backing.unwrap_or(BackingType::HashMap);
 
         Ok(StructibleConfig { backing })
     }

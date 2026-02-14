@@ -183,19 +183,22 @@ The macro accepts the following attributes:
 
 ### `backing`
 
-**Required.** Specifies the map type backing the struct.
+**Optional.** Specifies the map type backing the struct. Defaults to `HashMap`.
 
 | Value | Map Type |
 |-------|----------|
-| `HashMap` | `std::collections::HashMap` |
+| `HashMap` | `std::collections::HashMap` (default) |
 | `BTreeMap` | `std::collections::BTreeMap` |
 
 ```rust
-#[structible(backing = HashMap)]
+#[structible]                       // Uses HashMap by default
 struct Foo { /* ... */ }
 
-#[structible(backing = BTreeMap)]
+#[structible(BTreeMap)]             // Shorthand for BTreeMap
 struct Bar { /* ... */ }
+
+#[structible(backing = BTreeMap)]   // Explicit key-value form
+struct Baz { /* ... */ }
 ```
 
 Use `BTreeMap` when you need deterministic iteration order or when field
