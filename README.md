@@ -186,6 +186,27 @@ person.set_email(Some("bob@example.com".into()));
 person.clear_email();                        // Custom remover name
 ```
 
+## The `MapBacking` Trait
+
+The `MapBacking` trait defines the interface required for a type to be used
+as backing storage. It is implemented for `HashMap` and `BTreeMap`:
+
+```rust
+pub trait MapBacking<K, V> {
+    fn new() -> Self;
+    fn insert(&mut self, key: K, value: V) -> Option<V>;
+    fn get(&self, key: &K) -> Option<&V>;
+    fn get_mut(&mut self, key: &K) -> Option<&mut V>;
+    fn remove(&mut self, key: &K) -> Option<V>;
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
+}
+```
+
+This trait documents the contract that backing types must satisfy. Custom
+map types that implement these methods can potentially be used as backing
+storage.
+
 ## Design Decisions
 
 ### Option Unwrapping
