@@ -230,10 +230,16 @@ the type's invariants, analogous to undefined behavior at the type level.
 The `new` constructor guarantees all required fields are present, so this
 panic should not occur during normal usage.
 
-### No `Default` Implementation
+### Automatic Trait Implementations
 
-The generated struct does not implement `Default` because required fields
-have no sensible default values. Use the `new` constructor instead.
+The generated struct automatically derives:
+- `Debug` - for debug formatting
+- `Clone` - for cloning (requires all field types to implement `Clone`)
+- `PartialEq` - for equality comparison (requires all field types to implement `PartialEq`)
+
+Additionally, `Default` is automatically implemented **only** when all fields
+are optional (no required fields). Structs with required fields do not
+implement `Default` because there are no sensible default values for them.
 
 ## Limitations
 

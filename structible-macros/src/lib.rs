@@ -8,7 +8,9 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemStruct};
 
-use crate::codegen::{generate_field_enum, generate_impl, generate_struct, generate_value_enum};
+use crate::codegen::{
+    generate_default_impl, generate_field_enum, generate_impl, generate_struct, generate_value_enum,
+};
 use crate::parse::{parse_struct_fields, StructibleConfig};
 
 /// Transforms a struct into a map-backed type with generated accessors.
@@ -53,12 +55,14 @@ pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
     let value_enum = generate_value_enum(name, &fields);
     let struct_def = generate_struct(name, vis, &config, attrs);
     let impl_block = generate_impl(name, &fields, &config);
+    let default_impl = generate_default_impl(name, &fields, &config);
 
     let expanded = quote! {
         #field_enum
         #value_enum
         #struct_def
         #impl_block
+        #default_impl
     };
 
     expanded.into()

@@ -55,7 +55,7 @@ pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
 
     quote! {
         #[doc(hidden)]
-        #[derive(Debug, Clone)]
+        #[derive(Debug, Clone, PartialEq)]
         pub enum #enum_name {
             #(#variants),*
         }
@@ -74,6 +74,7 @@ pub fn generate_struct(
     let map_type = config.backing.to_tokens();
 
     quote! {
+        #[derive(Debug, Clone, PartialEq)]
         #(#attrs)*
         #vis struct #struct_name {
             inner: #map_type<#field_enum, #value_enum>,
@@ -112,6 +113,31 @@ pub fn generate_impl(
             }
         }
     }
+}
+
+/// Generate a Default impl if all fields are optional.
+pub fn generate_default_impl(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    config: &StructibleConfig,
+) -> Option<TokenStream> {
+    // Only generate Default if all fields are optional
+    let all_optional = fields.iter().all(|f| f.is_optional);
+    if !all_optional {
+        return None;
+    }
+
+    let map_type = config.backing.to_tokens();
+
+    Some(quote! {
+        impl ::std::default::Default for #struct_name {
+            fn default() -> Self {
+                Self {
+                    inner: #map_type::new(),
+                }
+            }
+        }
+    })
 }
 
 fn generate_constructor(
