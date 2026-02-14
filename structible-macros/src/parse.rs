@@ -21,10 +21,20 @@ impl BackingType {
     }
 }
 
-/// Configuration parsed from `#[structible(...)]` attribute.
+/// Configuration parsed from `#[structible(...)]` attribute on the struct.
 #[derive(Debug)]
 pub struct StructibleConfig {
     pub backing: BackingType,
+    pub constructor: Option<Ident>,
+}
+
+/// Configuration parsed from `#[structible(...)]` attribute on a field.
+#[derive(Debug, Default, Clone)]
+pub struct FieldConfig {
+    pub get: Option<Ident>,
+    pub get_mut: Option<Ident>,
+    pub set: Option<Ident>,
+    pub remove: Option<Ident>,
 }
 
 impl Parse for StructibleConfig {
@@ -33,6 +43,7 @@ impl Parse for StructibleConfig {
         if input.is_empty() {
             return Ok(StructibleConfig {
                 backing: BackingType::HashMap,
+                constructor: None,
             });
         }
 
@@ -56,12 +67,16 @@ impl Parse for StructibleConfig {
                 };
                 // Consume the identifier
                 input.parse::<Ident>()?;
-                return Ok(StructibleConfig { backing });
+                return Ok(StructibleConfig {
+                    backing,
+                    constructor: None,
+                });
             }
         }
 
         // Parse as key-value pairs
         let mut backing = None;
+        let mut constructor = None;
 
         let pairs = Punctuated::<MetaItem, Token![,]>::parse_terminated(input)?;
 
@@ -82,6 +97,9 @@ impl Parse for StructibleConfig {
                         }
                     });
                 }
+                "constructor" => {
+                    constructor = Some(item.value);
+                }
                 other => {
                     return Err(syn::Error::new(
                         item.key.span(),
@@ -94,7 +112,10 @@ impl Parse for StructibleConfig {
         // Default to HashMap if backing was not specified
         let backing = backing.unwrap_or(BackingType::HashMap);
 
-        Ok(StructibleConfig { backing })
+        Ok(StructibleConfig {
+            backing,
+            constructor,
+        })
     }
 }
 
@@ -120,6 +141,7 @@ pub struct FieldInfo {
     pub is_optional: bool,
     pub vis: Visibility,
     pub attrs: Vec<Attribute>,
+    pub config: FieldConfig,
 }
 
 impl FieldInfo {
@@ -134,15 +156,64 @@ impl FieldInfo {
             None => (false, ty.clone()),
         };
 
+        // Parse field-level structible attributes
+        let config = parse_field_config(&field.attrs)?;
+
+        // Filter out structible attributes from the preserved attrs
+        let attrs: Vec<_> = field
+            .attrs
+            .iter()
+            .filter(|a| !a.path().is_ident("structible"))
+            .cloned()
+            .collect();
+
         Ok(FieldInfo {
             name,
             ty,
             inner_ty,
             is_optional,
             vis: field.vis.clone(),
-            attrs: field.attrs.clone(),
+            attrs,
+            config,
         })
     }
+}
+
+/// Parse field-level `#[structible(...)]` attributes.
+fn parse_field_config(attrs: &[Attribute]) -> syn::Result<FieldConfig> {
+    let mut config = FieldConfig::default();
+
+    for attr in attrs {
+        if attr.path().is_ident("structible") {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("get") {
+                    let _: Token![=] = meta.input.parse()?;
+                    let value: Ident = meta.input.parse()?;
+                    config.get = Some(value);
+                } else if meta.path.is_ident("get_mut") {
+                    let _: Token![=] = meta.input.parse()?;
+                    let value: Ident = meta.input.parse()?;
+                    config.get_mut = Some(value);
+                } else if meta.path.is_ident("set") {
+                    let _: Token![=] = meta.input.parse()?;
+                    let value: Ident = meta.input.parse()?;
+                    config.set = Some(value);
+                } else if meta.path.is_ident("remove") {
+                    let _: Token![=] = meta.input.parse()?;
+                    let value: Ident = meta.input.parse()?;
+                    config.remove = Some(value);
+                } else {
+                    return Err(meta.error(format!(
+                        "unknown field attribute `{}`",
+                        meta.path.get_ident().map_or("".into(), |i| i.to_string())
+                    )));
+                }
+                Ok(())
+            })?;
+        }
+    }
+
+    Ok(config)
 }
 
 /// Parse all fields from a struct.

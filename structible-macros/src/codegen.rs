@@ -146,9 +146,14 @@ fn generate_constructor(
         })
         .collect();
 
+    let constructor_name = config
+        .constructor
+        .clone()
+        .unwrap_or_else(|| format_ident!("new"));
+
     quote! {
         /// Creates a new instance with all required fields.
-        pub fn new(#(#params),*) -> Self {
+        pub fn #constructor_name(#(#params),*) -> Self {
             let mut inner = #map_type::new();
             #(#inserts)*
             Self { inner }
@@ -164,6 +169,7 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
         .iter()
         .map(|f| {
             let name = &f.name;
+            let getter_name = f.config.get.clone().unwrap_or_else(|| name.clone());
             let variant = to_pascal_case(name);
 
             let vis = &f.vis;
@@ -171,7 +177,7 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
             if f.is_optional {
                 let inner_ty = &f.inner_ty;
                 quote! {
-                    #vis fn #name(&self) -> Option<&#inner_ty> {
+                    #vis fn #getter_name(&self) -> Option<&#inner_ty> {
                         match self.inner.get(&#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => Some(v),
                             _ => None,
@@ -181,7 +187,7 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
             } else {
                 let ty = &f.ty;
                 quote! {
-                    #vis fn #name(&self) -> &#ty {
+                    #vis fn #getter_name(&self) -> &#ty {
                         match self.inner.get(&#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => v,
                             _ => panic!("required field `{}` not present", stringify!(#name)),
@@ -201,7 +207,11 @@ fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenS
         .iter()
         .map(|f| {
             let name = &f.name;
-            let getter_mut_name = format_ident!("{}_mut", name);
+            let getter_mut_name = f
+                .config
+                .get_mut
+                .clone()
+                .unwrap_or_else(|| format_ident!("{}_mut", name));
             let variant = to_pascal_case(name);
             let vis = &f.vis;
 
@@ -238,7 +248,11 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
         .iter()
         .map(|f| {
             let name = &f.name;
-            let setter_name = format_ident!("set_{}", name);
+            let setter_name = f
+                .config
+                .set
+                .clone()
+                .unwrap_or_else(|| format_ident!("set_{}", name));
             let variant = to_pascal_case(name);
             let vis = &f.vis;
 
@@ -278,7 +292,11 @@ fn generate_removers(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStre
         .filter(|f| f.is_optional)
         .map(|f| {
             let name = &f.name;
-            let remover_name = format_ident!("remove_{}", name);
+            let remover_name = f
+                .config
+                .remove
+                .clone()
+                .unwrap_or_else(|| format_ident!("remove_{}", name));
             let variant = to_pascal_case(name);
             let inner_ty = &f.inner_ty;
             let vis = &f.vis;

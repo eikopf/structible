@@ -145,6 +145,47 @@ struct Baz { /* ... */ }
 Use `BTreeMap` when you need deterministic iteration order or when field
 keys should be `Ord` rather than `Hash`.
 
+### `constructor`
+
+**Optional.** Customizes the name of the constructor method.
+
+```rust
+#[structible(constructor = create)]
+pub struct Person {
+    pub name: String,
+}
+
+let person = Person::create("Alice".into());  // Instead of Person::new()
+```
+
+### Field-Level Attributes
+
+Field-level `#[structible(...)]` attributes customize accessor method names:
+
+| Attribute | Default | Description |
+|-----------|---------|-------------|
+| `get = name` | field name | Getter method name |
+| `get_mut = name` | `{field}_mut` | Mutable getter method name |
+| `set = name` | `set_{field}` | Setter method name |
+| `remove = name` | `remove_{field}` | Remover method name (optional fields only) |
+
+```rust
+#[structible]
+pub struct Person {
+    #[structible(get = full_name, set = rename)]
+    pub name: String,
+
+    #[structible(get = electronic_mail, remove = clear_email)]
+    pub email: Option<String>,
+}
+
+let mut person = Person::new("Alice".into());
+assert_eq!(person.full_name(), "Alice");    // Custom getter name
+person.rename("Bob".into());                 // Custom setter name
+person.set_email(Some("bob@example.com".into()));
+person.clear_email();                        // Custom remover name
+```
+
 ## Design Decisions
 
 ### Option Unwrapping
