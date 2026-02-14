@@ -19,8 +19,13 @@ pub fn value_enum_name(struct_name: &Ident) -> Ident {
 pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream {
     let enum_name = field_enum_name(struct_name);
 
-    let variants: Vec<_> = fields
+    // Find unknown field if present
+    let unknown_field = fields.iter().find(|f| f.is_unknown_field());
+
+    // Generate variants for known fields only
+    let known_variants: Vec<_> = fields
         .iter()
+        .filter(|f| !f.is_unknown_field())
         .map(|f| {
             let variant = to_pascal_case(&f.name);
             let attrs = &f.attrs;
@@ -31,11 +36,27 @@ pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
         })
         .collect();
 
-    quote! {
-        #[doc(hidden)]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-        pub enum #enum_name {
-            #(#variants),*
+    if let Some(uf) = unknown_field {
+        // Generate generic enum with Unknown variant
+        let key_type = uf.unknown_key_type().unwrap();
+        quote! {
+            #[doc(hidden)]
+            #[allow(non_camel_case_types)]
+            #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+            pub enum #enum_name<__K = #key_type> {
+                #(#known_variants,)*
+                Unknown(__K),
+            }
+        }
+    } else {
+        // No unknown field - generate simple enum with Copy
+        quote! {
+            #[doc(hidden)]
+            #[allow(non_camel_case_types)]
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+            pub enum #enum_name {
+                #(#known_variants),*
+            }
         }
     }
 }
@@ -44,8 +65,13 @@ pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
 pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream {
     let enum_name = value_enum_name(struct_name);
 
-    let variants: Vec<_> = fields
+    // Find unknown field if present
+    let unknown_field = fields.iter().find(|f| f.is_unknown_field());
+
+    // Generate variants for known fields only
+    let mut variants: Vec<_> = fields
         .iter()
+        .filter(|f| !f.is_unknown_field())
         .map(|f| {
             let variant = to_pascal_case(&f.name);
             let ty = &f.inner_ty; // Always use inner type (unwrapped for Option)
@@ -53,8 +79,15 @@ pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
         })
         .collect();
 
+    // Add Unknown variant if there's an unknown field
+    if let Some(uf) = unknown_field {
+        let value_ty = &uf.inner_ty;
+        variants.push(quote! { Unknown(#value_ty) });
+    }
+
     quote! {
         #[doc(hidden)]
+        #[allow(non_camel_case_types)]
         #[derive(Debug, Clone, PartialEq)]
         pub enum #enum_name {
             #(#variants),*
@@ -93,6 +126,7 @@ pub fn generate_impl(
     let getters_mut = generate_getters_mut(struct_name, fields);
     let setters = generate_setters(struct_name, fields);
     let removers = generate_removers(struct_name, fields);
+    let unknown_methods = generate_unknown_field_methods(struct_name, fields);
 
     quote! {
         impl #struct_name {
@@ -101,6 +135,7 @@ pub fn generate_impl(
             #(#getters_mut)*
             #(#setters)*
             #(#removers)*
+            #unknown_methods
 
             /// Returns the number of fields currently present.
             pub fn len(&self) -> usize {
@@ -121,8 +156,12 @@ pub fn generate_default_impl(
     fields: &[FieldInfo],
     config: &StructibleConfig,
 ) -> Option<TokenStream> {
-    // Only generate Default if all fields are optional
-    let all_optional = fields.iter().all(|f| f.is_optional);
+    // Only generate Default if all non-unknown fields are optional
+    // (Unknown fields are always optional by validation)
+    let all_optional = fields
+        .iter()
+        .filter(|f| !f.is_unknown_field())
+        .all(|f| f.is_optional);
     if !all_optional {
         return None;
     }
@@ -149,8 +188,11 @@ fn generate_constructor(
     let value_enum = value_enum_name(struct_name);
     let map_type = config.backing.to_tokens();
 
-    // Only required (non-optional) fields in constructor
-    let required: Vec<_> = fields.iter().filter(|f| !f.is_optional).collect();
+    // Only required (non-optional) fields in constructor, excluding unknown fields
+    let required: Vec<_> = fields
+        .iter()
+        .filter(|f| !f.is_optional && !f.is_unknown_field())
+        .collect();
 
     let params: Vec<_> = required
         .iter()
@@ -193,6 +235,7 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
 
     fields
         .iter()
+        .filter(|f| !f.is_unknown_field())
         .map(|f| {
             let name = &f.name;
             let getter_name = f.config.get.clone().unwrap_or_else(|| name.clone());
@@ -231,6 +274,7 @@ fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenS
 
     fields
         .iter()
+        .filter(|f| !f.is_unknown_field())
         .map(|f| {
             let name = &f.name;
             let getter_mut_name = f
@@ -272,6 +316,7 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
 
     fields
         .iter()
+        .filter(|f| !f.is_unknown_field())
         .map(|f| {
             let name = &f.name;
             let setter_name = f
@@ -308,14 +353,105 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
         .collect()
 }
 
+/// Generate methods for the unknown fields catch-all.
+fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream {
+    let Some(unknown_field) = fields.iter().find(|f| f.is_unknown_field()) else {
+        return quote! {};
+    };
+
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
+    let name = &unknown_field.name;
+    let key_type = unknown_field.unknown_key_type().unwrap();
+    let value_type = &unknown_field.inner_ty;
+    let vis = &unknown_field.vis;
+
+    // Method names derived from field name
+    let add_method = format_ident!("add_{}", name);
+    let get_method = name.clone();
+    let get_mut_method = format_ident!("{}_mut", name);
+    let remove_method = format_ident!("remove_{}", name);
+    let iter_method = format_ident!("{}_iter", name);
+
+    quote! {
+        /// Inserts an unknown field with the given key and value.
+        /// Returns the previous value if the key was already present.
+        #vis fn #add_method(&mut self, key: #key_type, value: #value_type) -> Option<#value_type> {
+            match self.inner.insert(
+                #field_enum::Unknown(key),
+                #value_enum::Unknown(value)
+            ) {
+                Some(#value_enum::Unknown(v)) => Some(v),
+                _ => None,
+            }
+        }
+
+        /// Returns a reference to the value for the given unknown key.
+        #vis fn #get_method<__Q>(&self, key: &__Q) -> Option<&#value_type>
+        where
+            #key_type: ::std::borrow::Borrow<__Q>,
+            __Q: ::std::hash::Hash + ::std::cmp::Eq + ?Sized,
+        {
+            // We need to iterate and find because HashMap::get requires the exact key type
+            // For borrowed lookups, we compare via Borrow
+            for (k, v) in self.inner.iter() {
+                if let #field_enum::Unknown(ref stored_key) = k {
+                    if <#key_type as ::std::borrow::Borrow<__Q>>::borrow(stored_key) == key {
+                        if let #value_enum::Unknown(ref val) = v {
+                            return Some(val);
+                        }
+                    }
+                }
+            }
+            None
+        }
+
+        /// Returns a mutable reference to the value for the given unknown key.
+        #vis fn #get_mut_method<__Q>(&mut self, key: &__Q) -> Option<&mut #value_type>
+        where
+            #key_type: ::std::borrow::Borrow<__Q>,
+            __Q: ::std::hash::Hash + ::std::cmp::Eq + ?Sized,
+        {
+            for (k, v) in self.inner.iter_mut() {
+                if let #field_enum::Unknown(ref stored_key) = k {
+                    if <#key_type as ::std::borrow::Borrow<__Q>>::borrow(stored_key) == key {
+                        if let #value_enum::Unknown(ref mut val) = v {
+                            return Some(val);
+                        }
+                    }
+                }
+            }
+            None
+        }
+
+        /// Removes an unknown field and returns the value if present.
+        #vis fn #remove_method(&mut self, key: &#key_type) -> Option<#value_type> {
+            match self.inner.remove(&#field_enum::Unknown(key.clone())) {
+                Some(#value_enum::Unknown(v)) => Some(v),
+                _ => None,
+            }
+        }
+
+        /// Returns an iterator over all unknown fields.
+        #vis fn #iter_method(&self) -> impl Iterator<Item = (&#key_type, &#value_type)> {
+            self.inner.iter().filter_map(|(k, v)| {
+                match (k, v) {
+                    (#field_enum::Unknown(key), #value_enum::Unknown(value)) => Some((key, value)),
+                    _ => None,
+                }
+            })
+        }
+    }
+}
+
 fn generate_removers(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 
-    // Only optional fields can be removed
+    // Only optional fields can be removed, and skip unknown fields
     fields
         .iter()
-        .filter(|f| f.is_optional)
+        .filter(|f| f.is_optional && !f.is_unknown_field())
         .map(|f| {
             let name = &f.name;
             let remover_name = f

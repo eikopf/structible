@@ -29,12 +29,14 @@ pub struct StructibleConfig {
 }
 
 /// Configuration parsed from `#[structible(...)]` attribute on a field.
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct FieldConfig {
     pub get: Option<Ident>,
     pub get_mut: Option<Ident>,
     pub set: Option<Ident>,
     pub remove: Option<Ident>,
+    /// If present, this field is an unknown fields catch-all with the given key type.
+    pub unknown_key: Option<Type>,
 }
 
 impl Parse for StructibleConfig {
@@ -145,6 +147,16 @@ pub struct FieldInfo {
 }
 
 impl FieldInfo {
+    /// Returns true if this field is an unknown fields catch-all.
+    pub fn is_unknown_field(&self) -> bool {
+        self.config.unknown_key.is_some()
+    }
+
+    /// Returns the key type for unknown fields, if this is an unknown field.
+    pub fn unknown_key_type(&self) -> Option<&Type> {
+        self.config.unknown_key.as_ref()
+    }
+
     pub fn from_field(field: &Field) -> syn::Result<Self> {
         let name = field.ident.clone().ok_or_else(|| {
             syn::Error::new_spanned(field, "structible only supports named fields")
@@ -202,6 +214,10 @@ fn parse_field_config(attrs: &[Attribute]) -> syn::Result<FieldConfig> {
                     let _: Token![=] = meta.input.parse()?;
                     let value: Ident = meta.input.parse()?;
                     config.remove = Some(value);
+                } else if meta.path.is_ident("key") {
+                    let _: Token![=] = meta.input.parse()?;
+                    let key_type: Type = meta.input.parse()?;
+                    config.unknown_key = Some(key_type);
                 } else {
                     return Err(meta.error(format!(
                         "unknown field attribute `{}`",
@@ -234,5 +250,26 @@ pub fn parse_struct_fields(item: &ItemStruct) -> syn::Result<Vec<FieldInfo>> {
         }
     };
 
-    fields.iter().map(FieldInfo::from_field).collect()
+    let parsed: Vec<FieldInfo> = fields.iter().map(FieldInfo::from_field).collect::<Result<_, _>>()?;
+
+    // Validate: at most one unknown field
+    let unknown_fields: Vec<_> = parsed.iter().filter(|f| f.is_unknown_field()).collect();
+    if unknown_fields.len() > 1 {
+        return Err(syn::Error::new_spanned(
+            item,
+            "structible only supports one unknown fields catch-all per struct",
+        ));
+    }
+
+    // Validate: unknown field must be Optional
+    for field in &unknown_fields {
+        if !field.is_optional {
+            return Err(syn::Error::new_spanned(
+                &field.name,
+                "unknown fields catch-all must be declared as Option<T>",
+            ));
+        }
+    }
+
+    Ok(parsed)
 }
