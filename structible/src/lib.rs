@@ -11,7 +11,7 @@ pub use structible_macros::structible;
 ///
 /// Users can implement this trait for custom map types to use them as
 /// backing storage.
-pub trait MapBacking<K, V> {
+pub trait BackingMap<K, V> {
     /// Creates a new, empty map.
     fn new() -> Self;
 
@@ -34,7 +34,7 @@ pub trait MapBacking<K, V> {
     fn is_empty(&self) -> bool;
 }
 
-impl<K, V> MapBacking<K, V> for HashMap<K, V>
+impl<K, V> BackingMap<K, V> for HashMap<K, V>
 where
     K: Eq + Hash,
 {
@@ -67,7 +67,7 @@ where
     }
 }
 
-impl<K, V> MapBacking<K, V> for BTreeMap<K, V>
+impl<K, V> BackingMap<K, V> for BTreeMap<K, V>
 where
     K: Ord,
 {

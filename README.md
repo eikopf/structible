@@ -186,13 +186,13 @@ person.set_email(Some("bob@example.com".into()));
 person.clear_email();                        // Custom remover name
 ```
 
-## The `MapBacking` Trait
+## The `BackingMap` Trait
 
-The `MapBacking` trait defines the interface required for a type to be used
+The `BackingMap` trait defines the interface required for a type to be used
 as backing storage. It is implemented for `HashMap` and `BTreeMap`:
 
 ```rust
-pub trait MapBacking<K, V> {
+pub trait BackingMap<K, V> {
     fn new() -> Self;
     fn insert(&mut self, key: K, value: V) -> Option<V>;
     fn get(&self, key: &K) -> Option<&V>;
