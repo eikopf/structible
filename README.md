@@ -168,6 +168,7 @@ Field-level `#[structible(...)]` attributes customize accessor method names:
 | `get_mut = name` | `{field}_mut` | Mutable getter method name |
 | `set = name` | `set_{field}` | Setter method name |
 | `remove = name` | `remove_{field}` | Remover method name (optional fields only) |
+| `key = Type` | — | Marks field as unknown/extension fields catch-all |
 
 ```rust
 #[structible]
@@ -184,6 +185,78 @@ assert_eq!(person.full_name(), "Alice");    // Custom getter name
 person.rename("Bob".into());                 // Custom setter name
 person.set_email(Some("bob@example.com".into()));
 person.clear_email();                        // Custom remover name
+```
+
+### Unknown/Extension Fields
+
+The `key` attribute marks a field as a catch-all for unknown or extension
+fields. This is useful for extensible data models where additional key-value
+pairs may be present beyond the statically-known fields.
+
+```rust
+#[structible]
+pub struct Person {
+    pub name: String,
+    pub age: u32,
+    #[structible(key = String)]
+    pub extra: Option<serde_json::Value>,
+}
+```
+
+The field must be declared as `Option<T>`, where `T` is the value type for
+unknown entries. The `key` attribute specifies the key type. Only one unknown
+field is allowed per struct.
+
+Unknown fields are stored in the same backing map as known fields, using an
+`Unknown(K)` variant in the generated field enum.
+
+#### Generated Methods
+
+For a field named `extra` with key type `String` and value type `Value`:
+
+```rust
+// Insert an unknown field, returning the previous value if present
+pub fn add_extra(&mut self, key: String, value: Value) -> Option<Value>;
+
+// Get by borrowed key (e.g., &str for String keys)
+pub fn extra<Q>(&self, key: &Q) -> Option<&Value>
+where
+    String: Borrow<Q>,
+    Q: Hash + Eq + ?Sized;
+
+// Mutable access by borrowed key
+pub fn extra_mut<Q>(&mut self, key: &Q) -> Option<&mut Value>
+where
+    String: Borrow<Q>,
+    Q: Hash + Eq + ?Sized;
+
+// Remove and return the value
+pub fn remove_extra(&mut self, key: &String) -> Option<Value>;
+
+// Iterate all unknown fields
+pub fn extra_iter(&self) -> impl Iterator<Item = (&String, &Value)>;
+```
+
+#### Example Usage
+
+```rust
+let mut person = Person::new("Alice".into(), 30);
+
+// Add unknown fields
+person.add_extra("favorite_color".into(), json!("blue"));
+person.add_extra("city".into(), json!("NYC"));
+
+// Lookup with borrowed key - no allocation needed
+let color = person.extra("favorite_color");
+assert_eq!(color, Some(&json!("blue")));
+
+// Iterate all unknown fields
+for (key, value) in person.extra_iter() {
+    println!("{}: {}", key, value);
+}
+
+// Remove an unknown field
+let removed = person.remove_extra(&"city".into());
 ```
 
 ## The `BackingMap` Trait
@@ -246,6 +319,7 @@ implement `Default` because there are no sensible default values for them.
 - Only named struct fields are supported (no tuple structs or unit structs)
 - Field types must be `Clone` for the value enum to derive `Clone`
 - Generic structs are not currently supported
+- At most one unknown/extension field per struct
 
 ## License
 
