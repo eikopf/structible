@@ -5,9 +5,19 @@ use syn::{Attribute, Ident, Visibility};
 use crate::parse::{FieldInfo, StructibleConfig};
 use crate::util::to_pascal_case;
 
+/// Returns the hidden field enum name for a struct.
+pub fn field_enum_name(struct_name: &Ident) -> Ident {
+    format_ident!("__StructibleField_{}", struct_name)
+}
+
+/// Returns the hidden value enum name for a struct.
+pub fn value_enum_name(struct_name: &Ident) -> Ident {
+    format_ident!("__StructibleValue_{}", struct_name)
+}
+
 /// Generate the field enum (used as map keys).
 pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream {
-    let enum_name = format_ident!("{}Field", struct_name);
+    let enum_name = field_enum_name(struct_name);
 
     let variants: Vec<_> = fields
         .iter()
@@ -22,6 +32,7 @@ pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
         .collect();
 
     quote! {
+        #[doc(hidden)]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
         pub enum #enum_name {
             #(#variants),*
@@ -31,7 +42,7 @@ pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
 
 /// Generate the value enum (used as map values).
 pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream {
-    let enum_name = format_ident!("{}Value", struct_name);
+    let enum_name = value_enum_name(struct_name);
 
     let variants: Vec<_> = fields
         .iter()
@@ -43,6 +54,7 @@ pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
         .collect();
 
     quote! {
+        #[doc(hidden)]
         #[derive(Debug, Clone)]
         pub enum #enum_name {
             #(#variants),*
@@ -57,8 +69,8 @@ pub fn generate_struct(
     config: &StructibleConfig,
     attrs: &[Attribute],
 ) -> TokenStream {
-    let field_enum = format_ident!("{}Field", struct_name);
-    let value_enum = format_ident!("{}Value", struct_name);
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
     let map_type = config.backing.to_tokens();
 
     quote! {
@@ -75,8 +87,8 @@ pub fn generate_impl(
     fields: &[FieldInfo],
     config: &StructibleConfig,
 ) -> TokenStream {
-    let field_enum = format_ident!("{}Field", struct_name);
-    let value_enum = format_ident!("{}Value", struct_name);
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
 
     let constructor = generate_constructor(struct_name, fields, config);
     let getters = generate_getters(struct_name, fields);
@@ -130,8 +142,8 @@ fn generate_constructor(
     fields: &[FieldInfo],
     config: &StructibleConfig,
 ) -> TokenStream {
-    let field_enum = format_ident!("{}Field", struct_name);
-    let value_enum = format_ident!("{}Value", struct_name);
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
     let map_type = config.backing.to_tokens();
 
     // Only required (non-optional) fields in constructor
@@ -168,8 +180,8 @@ fn generate_constructor(
 }
 
 fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStream> {
-    let field_enum = format_ident!("{}Field", struct_name);
-    let value_enum = format_ident!("{}Value", struct_name);
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
 
     fields
         .iter()
@@ -205,8 +217,8 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
 }
 
 fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStream> {
-    let field_enum = format_ident!("{}Field", struct_name);
-    let value_enum = format_ident!("{}Value", struct_name);
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
 
     fields
         .iter()
@@ -242,8 +254,8 @@ fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenS
 }
 
 fn generate_setters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStream> {
-    let field_enum = format_ident!("{}Field", struct_name);
-    let value_enum = format_ident!("{}Value", struct_name);
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
 
     fields
         .iter()
@@ -280,8 +292,8 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
 }
 
 fn generate_removers(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStream> {
-    let field_enum = format_ident!("{}Field", struct_name);
-    let value_enum = format_ident!("{}Value", struct_name);
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
 
     // Only optional fields can be removed
     fields

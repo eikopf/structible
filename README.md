@@ -44,61 +44,6 @@ and ergonomics. `structible` bridges this gap by generating a struct that
 *looks and feels* like a normal Rust struct from the caller's perspective,
 while internally storing data in a `HashMap` or `BTreeMap`.
 
-## Generated Types
-
-For a struct definition like:
-
-```rust
-#[structible(backing = HashMap)]
-pub struct Person {
-    pub name: String,
-    pub age: u32,
-    pub email: Option<String>,
-}
-```
-
-The macro generates three items:
-
-### Field Enum
-
-A `Copy` enum representing each field, suitable for use as map keys:
-
-```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum PersonField {
-    Name,
-    Age,
-    Email,
-}
-```
-
-### Value Enum
-
-An enum representing the *unwrapped* type of each field:
-
-```rust
-#[derive(Debug, Clone)]
-pub enum PersonValue {
-    Name(String),
-    Age(u32),
-    Email(String),  // Note: unwrapped from Option<String>
-}
-```
-
-For fields declared as `Option<T>`, the value enum stores `T` directly.
-The presence or absence of the field in the backing map represents
-`Some` or `None` respectively.
-
-### Struct
-
-The struct itself, backed by the specified map type:
-
-```rust
-pub struct Person {
-    inner: HashMap<PersonField, PersonValue>,
-}
-```
-
 ## Generated Methods
 
 ### Constructor
@@ -164,17 +109,13 @@ the map and return the value if present:
 pub fn remove_email(&mut self) -> Option<String>;
 ```
 
-### Raw Map Access
+### Utility Methods
 
-Direct access to the underlying map is also provided:
+Methods for querying the struct's state:
 
 ```rust
-pub fn get(&self, field: &PersonField) -> Option<&PersonValue>;
-pub fn insert(&mut self, field: PersonField, value: PersonValue) -> Option<PersonValue>;
-pub fn contains(&self, field: &PersonField) -> bool;
-pub fn len(&self) -> usize;
-pub fn is_empty(&self) -> bool;
-pub fn iter(&self) -> impl Iterator<Item = (&PersonField, &PersonValue)>;
+pub fn len(&self) -> usize;      // Number of fields present
+pub fn is_empty(&self) -> bool;  // True if no fields are present
 ```
 
 ## Attributes
@@ -208,9 +149,9 @@ keys should be `Ord` rather than `Hash`.
 
 ### Option Unwrapping
 
-Fields declared as `Option<T>` are stored as `T` in the value enum. The
-`Option` semantics are represented by the field's presence or absence in
-the backing map:
+Fields declared as `Option<T>` are stored internally without the `Option`
+wrapper. The `Option` semantics are represented by the field's presence
+or absence in the backing map:
 
 - **Present in map** → `Some(value)`
 - **Absent from map** → `None`
@@ -225,8 +166,7 @@ This is intentional: a missing required field represents a violation of
 the type's invariants, analogous to undefined behavior at the type level.
 
 The `new` constructor guarantees all required fields are present, so this
-panic can only occur if the raw map access methods (`insert`, `remove` via
-the underlying map) are misused.
+panic should not occur during normal usage.
 
 ### No `Default` Implementation
 
