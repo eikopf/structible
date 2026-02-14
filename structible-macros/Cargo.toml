@@ -1,10 +1,10 @@
 [package]
 name = "structible-macros"
-version = "0.1.0"
-edition = "2021"
-description = "Proc macros for structible - map-backed struct generation"
-license = "MIT"
-repository = "https://github.com/eikopf/structible"
+edition = "2024"
+description = "Proc macros for structible"
+license.workspace = true
+repository.workspace = true
+version.workspace = true
 
 [lib]
 proc-macro = true

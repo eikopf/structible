@@ -1,11 +1,10 @@
 [package]
 name = "structible"
-version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "Define structs backed by HashMap or BTreeMap with generated accessors"
-license = "MIT"
-repository = "https://github.com/eikopf/structible"
-readme = "README.md"
+license.workspace = true
+repository.workspace = true
+version.workspace = true
 
 [dependencies]
 structible-macros = { version = "0.1.0", path = "../structible-macros" }
