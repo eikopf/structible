@@ -5,6 +5,8 @@ description = "Define structs backed by HashMap or BTreeMap with generated acces
 license.workspace = true
 repository.workspace = true
 version.workspace = true
+keywords = ["proc-macro", "struct", "map", "hashmap", "derive"]
+categories = ["rust-patterns", "data-structures"]
 
 [dependencies]
 structible-macros = { version = "0.1.0", path = "../structible-macros" }
