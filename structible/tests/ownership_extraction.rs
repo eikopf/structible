@@ -12,11 +12,11 @@ fn test_into_fields_all_present() {
     let mut person = Person::new("Alice".into(), 30);
     person.set_email(Some("alice@example.com".into()));
 
-    let fields = person.into_fields();
+    let PersonFields { name, age, email } = person.into_fields();
 
-    assert_eq!(fields.name, "Alice");
-    assert_eq!(fields.age, 30);
-    assert_eq!(fields.email, Some("alice@example.com".into()));
+    assert_eq!(name, "Alice");
+    assert_eq!(age, 30);
+    assert_eq!(email, Some("alice@example.com".into()));
 }
 
 #[test]
