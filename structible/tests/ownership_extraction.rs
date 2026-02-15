@@ -169,3 +169,32 @@ fn test_fields_struct_derives() {
     // PartialEq
     assert_eq!(fields, cloned);
 }
+
+// Test field visibility in Fields struct
+mod visibility_test {
+    use structible::structible;
+
+    #[structible]
+    pub struct MixedVisibility {
+        pub public_field: String,
+        pub(crate) crate_field: u32,
+        private_field: Option<bool>,
+    }
+
+    #[test]
+    fn test_fields_visibility() {
+        let mut item = MixedVisibility::new("hello".into(), 42);
+        item.set_private_field(Some(true));
+
+        let fields = item.into_fields();
+
+        // Public field is accessible
+        assert_eq!(fields.public_field, "hello");
+
+        // Crate field is accessible within the same crate
+        assert_eq!(fields.crate_field, 42);
+
+        // Private field is accessible within this module
+        assert_eq!(fields.private_field, Some(true));
+    }
+}
