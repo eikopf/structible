@@ -6,6 +6,7 @@ storage. It generates type-safe field and value enums, along with accessor
 methods, while preserving the external interface of a conventional struct.
 
 ```rust
+use std::collections::HashMap;
 use structible::structible;
 
 #[structible(backing = HashMap)]

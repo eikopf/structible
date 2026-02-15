@@ -19,32 +19,10 @@ impl BackingType {
         quote::quote! { #ty }
     }
 
-    /// Create a BackingType from a parsed Type, expanding shorthand names.
+    /// Create a BackingType from a parsed Type.
     ///
-    /// Recognizes `HashMap` and `BTreeMap` as shorthands for the std collections.
+    /// The type is used as-is without any expansion or transformation.
     pub fn from_type(ty: Type) -> Self {
-        // Check if this is a simple path that matches our shorthands
-        if let Type::Path(ref type_path) = ty
-            && type_path.qself.is_none()
-            && type_path.path.segments.len() == 1
-        {
-            let segment = &type_path.path.segments[0];
-            if segment.arguments.is_empty() {
-                match segment.ident.to_string().as_str() {
-                    "HashMap" => {
-                        return Self {
-                            ty: syn::parse_quote! { ::std::collections::HashMap },
-                        };
-                    }
-                    "BTreeMap" => {
-                        return Self {
-                            ty: syn::parse_quote! { ::std::collections::BTreeMap },
-                        };
-                    }
-                    _ => {}
-                }
-            }
-        }
         Self { ty }
     }
 }
