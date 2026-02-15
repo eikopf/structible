@@ -32,19 +32,29 @@ fn test_btreemap_backing() {
     assert_eq!(obj.label(), Some(&"my label".to_string()));
 }
 
-// Test fields with function pointers (simpler than trait objects)
-#[structible]
-pub struct WithFnPointer {
-    pub callback: fn(i32) -> i32,
-}
+// Test fields with function pointers (simpler than trait objects).
+//
+// The module-level `#[allow(...)]` suppresses a warning from the derived `PartialEq` impl
+// on macro-generated types. Function pointer comparisons are unreliable because the same
+// function can have different addresses across codegen units. This test only verifies that
+// fn pointers work as fields and does NOT rely on comparing `WithFnPointer` instances.
+#[allow(unpredictable_function_pointer_comparisons)]
+mod fn_pointer_test {
+    use structible::structible;
 
-#[test]
-fn test_fn_pointer_field() {
-    fn double(x: i32) -> i32 {
-        x * 2
+    #[structible]
+    pub struct WithFnPointer {
+        pub callback: fn(i32) -> i32,
     }
-    let obj = WithFnPointer::new(double);
-    assert_eq!((obj.callback())(5), 10);
+
+    #[test]
+    fn test_fn_pointer_field() {
+        fn double(x: i32) -> i32 {
+            x * 2
+        }
+        let obj = WithFnPointer::new(double);
+        assert_eq!((obj.callback())(5), 10);
+    }
 }
 
 // Test fields with array types
