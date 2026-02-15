@@ -46,7 +46,7 @@ pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
         let key_type = uf.unknown_key_type().unwrap();
         quote! {
             #[doc(hidden)]
-            #[allow(non_camel_case_types)]
+            #[allow(non_camel_case_types, clippy::enum_variant_names)]
             #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
             pub enum #enum_name<__K = #key_type> {
                 #(#known_variants,)*
@@ -57,7 +57,7 @@ pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
         // No unknown field - generate simple enum with Copy
         quote! {
             #[doc(hidden)]
-            #[allow(non_camel_case_types)]
+            #[allow(non_camel_case_types, clippy::enum_variant_names)]
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
             pub enum #enum_name {
                 #(#known_variants),*
@@ -93,7 +93,7 @@ pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo], generics: 
 
     quote! {
         #[doc(hidden)]
-        #[allow(non_camel_case_types)]
+        #[allow(non_camel_case_types, clippy::enum_variant_names)]
         #[derive(Debug, Clone, PartialEq)]
         pub enum #enum_name #impl_generics #where_clause {
             #(#variants),*
