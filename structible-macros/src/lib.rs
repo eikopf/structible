@@ -50,12 +50,13 @@ pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
     let name = &input.ident;
     let vis = &input.vis;
     let attrs = &input.attrs;
+    let generics = &input.generics;
 
     let field_enum = generate_field_enum(name, &fields);
-    let value_enum = generate_value_enum(name, &fields);
-    let struct_def = generate_struct(name, vis, &config, attrs);
-    let impl_block = generate_impl(name, &fields, &config);
-    let default_impl = generate_default_impl(name, &fields, &config);
+    let value_enum = generate_value_enum(name, &fields, generics);
+    let struct_def = generate_struct(name, vis, &config, attrs, generics);
+    let impl_block = generate_impl(name, &fields, &config, generics);
+    let default_impl = generate_default_impl(name, &fields, &config, generics);
 
     let expanded = quote! {
         #field_enum

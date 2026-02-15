@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Attribute, Ident, Visibility};
+use syn::{Attribute, Generics, Ident, Visibility};
 
 use crate::parse::{FieldInfo, StructibleConfig};
 use crate::util::to_pascal_case;
@@ -62,8 +62,9 @@ pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
 }
 
 /// Generate the value enum (used as map values).
-pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream {
+pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo], generics: &Generics) -> TokenStream {
     let enum_name = value_enum_name(struct_name);
+    let (impl_generics, _ty_generics, where_clause) = generics.split_for_impl();
 
     // Find unknown field if present
     let unknown_field = fields.iter().find(|f| f.is_unknown_field());
@@ -89,7 +90,7 @@ pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
         #[doc(hidden)]
         #[allow(non_camel_case_types)]
         #[derive(Debug, Clone, PartialEq)]
-        pub enum #enum_name {
+        pub enum #enum_name #impl_generics #where_clause {
             #(#variants),*
         }
     }
@@ -101,16 +102,18 @@ pub fn generate_struct(
     vis: &Visibility,
     config: &StructibleConfig,
     attrs: &[Attribute],
+    generics: &Generics,
 ) -> TokenStream {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
     let map_type = config.backing.to_tokens();
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote! {
         #[derive(Debug, Clone, PartialEq)]
         #(#attrs)*
-        #vis struct #struct_name {
-            inner: #map_type<#field_enum, #value_enum>,
+        #vis struct #struct_name #impl_generics #where_clause {
+            inner: #map_type<#field_enum, #value_enum #ty_generics>,
         }
     }
 }
@@ -120,16 +123,18 @@ pub fn generate_impl(
     struct_name: &Ident,
     fields: &[FieldInfo],
     config: &StructibleConfig,
+    generics: &Generics,
 ) -> TokenStream {
-    let constructor = generate_constructor(struct_name, fields, config);
-    let getters = generate_getters(struct_name, fields);
-    let getters_mut = generate_getters_mut(struct_name, fields);
-    let setters = generate_setters(struct_name, fields);
-    let removers = generate_removers(struct_name, fields);
-    let unknown_methods = generate_unknown_field_methods(struct_name, fields);
+    let constructor = generate_constructor(struct_name, fields, config, generics);
+    let getters = generate_getters(struct_name, fields, generics);
+    let getters_mut = generate_getters_mut(struct_name, fields, generics);
+    let setters = generate_setters(struct_name, fields, generics);
+    let removers = generate_removers(struct_name, fields, generics);
+    let unknown_methods = generate_unknown_field_methods(struct_name, fields, generics);
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote! {
-        impl #struct_name {
+        impl #impl_generics #struct_name #ty_generics #where_clause {
             #constructor
             #(#getters)*
             #(#getters_mut)*
@@ -155,6 +160,7 @@ pub fn generate_default_impl(
     struct_name: &Ident,
     fields: &[FieldInfo],
     config: &StructibleConfig,
+    generics: &Generics,
 ) -> Option<TokenStream> {
     // Only generate Default if all non-unknown fields are optional
     // (Unknown fields are always optional by validation)
@@ -167,9 +173,10 @@ pub fn generate_default_impl(
     }
 
     let map_type = config.backing.to_tokens();
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     Some(quote! {
-        impl ::std::default::Default for #struct_name {
+        impl #impl_generics ::std::default::Default for #struct_name #ty_generics #where_clause {
             fn default() -> Self {
                 Self {
                     inner: #map_type::new(),
@@ -183,6 +190,7 @@ fn generate_constructor(
     struct_name: &Ident,
     fields: &[FieldInfo],
     config: &StructibleConfig,
+    _generics: &Generics,
 ) -> TokenStream {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
@@ -229,7 +237,7 @@ fn generate_constructor(
     }
 }
 
-fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStream> {
+fn generate_getters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 
@@ -268,7 +276,7 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
         .collect()
 }
 
-fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStream> {
+fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 
@@ -310,7 +318,7 @@ fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenS
         .collect()
 }
 
-fn generate_setters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStream> {
+fn generate_setters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 
@@ -354,7 +362,7 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStrea
 }
 
 /// Generate methods for the unknown fields catch-all.
-fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream {
+fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> TokenStream {
     let Some(unknown_field) = fields.iter().find(|f| f.is_unknown_field()) else {
         return quote! {};
     };
@@ -395,9 +403,9 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo]) -> 
             // We need to iterate and find because HashMap::get requires the exact key type
             // For borrowed lookups, we compare via Borrow
             for (k, v) in self.inner.iter() {
-                if let #field_enum::Unknown(ref stored_key) = k {
+                if let #field_enum::Unknown(stored_key) = k {
                     if <#key_type as ::std::borrow::Borrow<__Q>>::borrow(stored_key) == key {
-                        if let #value_enum::Unknown(ref val) = v {
+                        if let #value_enum::Unknown(val) = v {
                             return Some(val);
                         }
                     }
@@ -413,9 +421,9 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo]) -> 
             __Q: ::std::hash::Hash + ::std::cmp::Eq + ?Sized,
         {
             for (k, v) in self.inner.iter_mut() {
-                if let #field_enum::Unknown(ref stored_key) = k {
+                if let #field_enum::Unknown(stored_key) = k {
                     if <#key_type as ::std::borrow::Borrow<__Q>>::borrow(stored_key) == key {
-                        if let #value_enum::Unknown(ref mut val) = v {
+                        if let #value_enum::Unknown(val) = v {
                             return Some(val);
                         }
                     }
@@ -444,7 +452,7 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo]) -> 
     }
 }
 
-fn generate_removers(struct_name: &Ident, fields: &[FieldInfo]) -> Vec<TokenStream> {
+fn generate_removers(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 

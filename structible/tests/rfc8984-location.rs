@@ -6,10 +6,7 @@ type Link = ();
 type Id = str;
 type VendorStr = str;
 
-// NOTE: this bug seems fairly simple; after running cargo-expand we find that
-// the value enum type isn't being generated with a generic parameter, and the
-// same also occurs with the generated Location type
-
+/// A rough version of the Location type from RFC 8984 §4.2.5.
 #[structible]
 struct Location<V> {
     pub name: String,
