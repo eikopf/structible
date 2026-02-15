@@ -129,7 +129,7 @@ fn test_custom_backing_with_unknown_fields() {
     assert_eq!(config.extra("color"), Some(&"red".to_string()));
 
     // Remove
-    let removed = config.remove_extra(&"size".into());
+    let removed = config.remove_extra("size");
     assert_eq!(removed, Some("large".to_string()));
     assert_eq!(config.extra("size"), None);
 }

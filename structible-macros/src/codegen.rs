@@ -535,8 +535,13 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo], _ge
         }
 
         /// Removes an unknown field and returns the value if present.
-        #vis fn #remove_method(&mut self, key: &#key_type) -> Option<#value_type> {
-            match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::Unknown(key.clone())) {
+        #vis fn #remove_method<__Q>(&mut self, key: &__Q) -> Option<#value_type>
+        where
+            #key_type: ::std::borrow::Borrow<__Q>,
+            __Q: ::std::borrow::ToOwned<Owned = #key_type> + ::std::hash::Hash + ::std::cmp::Eq + ?Sized,
+        {
+            let owned_key: #key_type = key.to_owned();
+            match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::Unknown(owned_key)) {
                 Some(#value_enum::Unknown(v)) => Some(v),
                 _ => None,
             }

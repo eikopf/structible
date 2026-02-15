@@ -59,7 +59,7 @@ fn test_remove_unknown_field() {
     let mut person = Person::new("Alice".into(), 30);
     person.add_extra("temp".into(), "value".into());
 
-    let removed = person.remove_extra(&"temp".into());
+    let removed = person.remove_extra("temp");
     assert_eq!(removed, Some("value".to_string()));
 
     // Should be gone now
