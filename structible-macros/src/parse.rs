@@ -6,23 +6,59 @@ use syn::{Attribute, Field, Ident, ItemStruct, Token, Type, Visibility};
 use crate::util::extract_option_inner;
 
 /// The backing map type specified in the attribute.
-#[derive(Debug, Clone)]
-pub enum BackingType {
-    HashMap,
-    BTreeMap,
+///
+/// This can be any type that implements `BackingMap<K, V>`.
+#[derive(Clone)]
+pub struct BackingType {
+    ty: Type,
 }
 
 impl BackingType {
     pub fn to_tokens(&self) -> TokenStream {
-        match self {
-            BackingType::HashMap => quote::quote! { ::std::collections::HashMap },
-            BackingType::BTreeMap => quote::quote! { ::std::collections::BTreeMap },
+        let ty = &self.ty;
+        quote::quote! { #ty }
+    }
+
+    /// Create a BackingType from a parsed Type, expanding shorthand names.
+    ///
+    /// Recognizes `HashMap` and `BTreeMap` as shorthands for the std collections.
+    pub fn from_type(ty: Type) -> Self {
+        // Check if this is a simple path that matches our shorthands
+        if let Type::Path(ref type_path) = ty
+            && type_path.qself.is_none()
+            && type_path.path.segments.len() == 1
+        {
+            let segment = &type_path.path.segments[0];
+            if segment.arguments.is_empty() {
+                match segment.ident.to_string().as_str() {
+                    "HashMap" => {
+                        return Self {
+                            ty: syn::parse_quote! { ::std::collections::HashMap },
+                        };
+                    }
+                    "BTreeMap" => {
+                        return Self {
+                            ty: syn::parse_quote! { ::std::collections::BTreeMap },
+                        };
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Self { ty }
+    }
+}
+
+impl Default for BackingType {
+    fn default() -> Self {
+        // Default to HashMap
+        Self {
+            ty: syn::parse_quote! { ::std::collections::HashMap },
         }
     }
 }
 
 /// Configuration parsed from `#[structible(...)]` attribute on the struct.
-#[derive(Debug)]
 pub struct StructibleConfig {
     pub backing: BackingType,
     pub constructor: Option<Ident>,
@@ -44,31 +80,21 @@ impl Parse for StructibleConfig {
         // Default to HashMap if no arguments provided
         if input.is_empty() {
             return Ok(StructibleConfig {
-                backing: BackingType::HashMap,
+                backing: BackingType::default(),
                 constructor: None,
             });
         }
 
-        // Try to parse as a shorthand (just the type name)
+        // Try to parse as a shorthand (just a type, not key = value)
+        // We detect this by checking if it looks like `backing = ...` or `constructor = ...`
         let fork = input.fork();
-        if let Ok(ident) = fork.parse::<Ident>() {
-            // Check if this is followed by `=` (key-value) or nothing/comma (shorthand)
-            if !fork.peek(Token![=]) {
-                let backing = match ident.to_string().as_str() {
-                    "HashMap" => BackingType::HashMap,
-                    "BTreeMap" => BackingType::BTreeMap,
-                    other => {
-                        return Err(syn::Error::new(
-                            ident.span(),
-                            format!(
-                                "unknown backing type `{}`, expected `HashMap` or `BTreeMap`",
-                                other
-                            ),
-                        ));
-                    }
-                };
-                // Consume the identifier
-                input.parse::<Ident>()?;
+        if let Ok(_first_ident) = fork.parse::<Ident>() {
+            let is_key_value = fork.peek(Token![=]);
+            if !is_key_value {
+                // This is a shorthand type specification
+                // Parse the full type (could be `HashMap`, `indexmap::IndexMap`, etc.)
+                let ty: Type = input.parse()?;
+                let backing = BackingType::from_type(ty);
                 return Ok(StructibleConfig {
                     backing,
                     constructor: None,
@@ -80,27 +106,27 @@ impl Parse for StructibleConfig {
         let mut backing = None;
         let mut constructor = None;
 
-        let pairs = Punctuated::<MetaItem, Token![,]>::parse_terminated(input)?;
+        let pairs = Punctuated::<MetaItemGeneric, Token![,]>::parse_terminated(input)?;
 
         for item in pairs {
             match item.key.to_string().as_str() {
                 "backing" => {
-                    backing = Some(match item.value.to_string().as_str() {
-                        "HashMap" => BackingType::HashMap,
-                        "BTreeMap" => BackingType::BTreeMap,
-                        other => {
-                            return Err(syn::Error::new(
-                                item.value.span(),
-                                format!(
-                                    "unknown backing type `{}`, expected `HashMap` or `BTreeMap`",
-                                    other
-                                ),
-                            ));
-                        }
-                    });
+                    backing = Some(BackingType::from_type(item.value_type));
                 }
                 "constructor" => {
-                    constructor = Some(item.value);
+                    // Constructor expects an identifier, not a type
+                    let ident = match item.value_type {
+                        Type::Path(ref p) if p.path.get_ident().is_some() => {
+                            p.path.get_ident().unwrap().clone()
+                        }
+                        _ => {
+                            return Err(syn::Error::new_spanned(
+                                item.value_type,
+                                "constructor must be an identifier",
+                            ));
+                        }
+                    };
+                    constructor = Some(ident);
                 }
                 other => {
                     return Err(syn::Error::new(
@@ -112,7 +138,7 @@ impl Parse for StructibleConfig {
         }
 
         // Default to HashMap if backing was not specified
-        let backing = backing.unwrap_or(BackingType::HashMap);
+        let backing = backing.unwrap_or_default();
 
         Ok(StructibleConfig {
             backing,
@@ -121,17 +147,17 @@ impl Parse for StructibleConfig {
     }
 }
 
-struct MetaItem {
+struct MetaItemGeneric {
     key: Ident,
-    value: Ident,
+    value_type: Type,
 }
 
-impl Parse for MetaItem {
+impl Parse for MetaItemGeneric {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let key: Ident = input.parse()?;
         let _: Token![=] = input.parse()?;
-        let value: Ident = input.parse()?;
-        Ok(MetaItem { key, value })
+        let value_type: Type = input.parse()?;
+        Ok(MetaItemGeneric { key, value_type })
     }
 }
 

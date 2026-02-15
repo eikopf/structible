@@ -101,3 +101,82 @@ where
         BTreeMap::is_empty(self)
     }
 }
+
+/// Extension trait for backing maps that support iteration.
+///
+/// This trait is required when using unknown/extension fields with
+/// `#[structible(key = ...)]`. It provides `iter()` and `iter_mut()` methods
+/// for iterating over entries in the map.
+///
+/// It is automatically implemented for `HashMap` and `BTreeMap`.
+pub trait IterableMap<K, V>: BackingMap<K, V> {
+    /// Iterator type for immutable iteration.
+    type Iter<'a>: Iterator<Item = (&'a K, &'a V)>
+    where
+        Self: 'a,
+        K: 'a,
+        V: 'a;
+
+    /// Iterator type for mutable iteration.
+    type IterMut<'a>: Iterator<Item = (&'a K, &'a mut V)>
+    where
+        Self: 'a,
+        K: 'a,
+        V: 'a;
+
+    /// Returns an iterator over all key-value pairs.
+    fn iter(&self) -> Self::Iter<'_>;
+
+    /// Returns a mutable iterator over all key-value pairs.
+    fn iter_mut(&mut self) -> Self::IterMut<'_>;
+}
+
+impl<K, V> IterableMap<K, V> for HashMap<K, V>
+where
+    K: Eq + Hash,
+{
+    type Iter<'a>
+        = std::collections::hash_map::Iter<'a, K, V>
+    where
+        K: 'a,
+        V: 'a;
+
+    type IterMut<'a>
+        = std::collections::hash_map::IterMut<'a, K, V>
+    where
+        K: 'a,
+        V: 'a;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        HashMap::iter(self)
+    }
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        HashMap::iter_mut(self)
+    }
+}
+
+impl<K, V> IterableMap<K, V> for BTreeMap<K, V>
+where
+    K: Ord,
+{
+    type Iter<'a>
+        = std::collections::btree_map::Iter<'a, K, V>
+    where
+        K: 'a,
+        V: 'a;
+
+    type IterMut<'a>
+        = std::collections::btree_map::IterMut<'a, K, V>
+    where
+        K: 'a,
+        V: 'a;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        BTreeMap::iter(self)
+    }
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        BTreeMap::iter_mut(self)
+    }
+}

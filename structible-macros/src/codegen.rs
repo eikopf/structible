@@ -15,6 +15,11 @@ pub fn value_enum_name(struct_name: &Ident) -> Ident {
     format_ident!("__StructibleValue_{}", struct_name)
 }
 
+/// Returns the companion fields struct name for ownership extraction.
+pub fn fields_struct_name(struct_name: &Ident) -> Ident {
+    format_ident!("{}Fields", struct_name)
+}
+
 /// Generate the field enum (used as map keys).
 pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream {
     let enum_name = field_enum_name(struct_name);
@@ -96,6 +101,74 @@ pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo], generics: 
     }
 }
 
+/// Generate the companion fields struct for ownership extraction.
+///
+/// This struct mirrors the original but with real fields that can be destructured.
+/// Optional fields are wrapped in `Option<T>`.
+pub fn generate_fields_struct(
+    struct_name: &Ident,
+    vis: &Visibility,
+    fields: &[FieldInfo],
+    generics: &Generics,
+) -> TokenStream {
+    let fields_struct = fields_struct_name(struct_name);
+    let (impl_generics, _ty_generics, where_clause) = generics.split_for_impl();
+
+    // Generate struct fields (exclude unknown fields - they can't be statically typed)
+    let struct_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| !f.is_unknown_field())
+        .map(|f| {
+            let name = &f.name;
+            let field_vis = &f.vis;
+            let attrs = &f.attrs;
+
+            if f.is_optional {
+                // Optional fields get wrapped in Option
+                let inner_ty = &f.inner_ty;
+                quote! {
+                    #(#attrs)*
+                    #field_vis #name: Option<#inner_ty>
+                }
+            } else {
+                // Required fields keep their type directly
+                let ty = &f.ty;
+                quote! {
+                    #(#attrs)*
+                    #field_vis #name: #ty
+                }
+            }
+        })
+        .collect();
+
+    // Collect type parameters to ensure they're all used (some may only appear in unknown fields)
+    // We add a PhantomData field if there are any type parameters
+    let type_params: Vec<_> = generics
+        .type_params()
+        .map(|tp| &tp.ident)
+        .collect();
+
+    let phantom_field = if type_params.is_empty() {
+        quote! {}
+    } else {
+        quote! {
+            #[doc(hidden)]
+            pub _phantom: ::std::marker::PhantomData<(#(#type_params,)*)>,
+        }
+    };
+
+    quote! {
+        /// Companion struct containing owned values of all fields.
+        ///
+        /// This struct can be destructured using pattern matching.
+        #[derive(Debug, Clone, PartialEq)]
+        #vis struct #fields_struct #impl_generics #where_clause {
+            #(#struct_fields,)*
+            #phantom_field
+        }
+    }
+}
+
 /// Generate the struct definition.
 pub fn generate_struct(
     struct_name: &Ident,
@@ -130,6 +203,8 @@ pub fn generate_impl(
     let getters_mut = generate_getters_mut(struct_name, fields, generics);
     let setters = generate_setters(struct_name, fields, generics);
     let removers = generate_removers(struct_name, fields, generics);
+    let take_methods = generate_take_methods(struct_name, fields, generics);
+    let into_fields = generate_into_fields(struct_name, fields, generics);
     let unknown_methods = generate_unknown_field_methods(struct_name, fields, generics);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
@@ -140,16 +215,18 @@ pub fn generate_impl(
             #(#getters_mut)*
             #(#setters)*
             #(#removers)*
+            #(#take_methods)*
+            #into_fields
             #unknown_methods
 
             /// Returns the number of fields currently present.
             pub fn len(&self) -> usize {
-                self.inner.len()
+                ::structible::BackingMap::len(&self.inner)
             }
 
             /// Returns true if no fields are present.
             pub fn is_empty(&self) -> bool {
-                self.inner.is_empty()
+                ::structible::BackingMap::is_empty(&self.inner)
             }
         }
     }
@@ -172,6 +249,8 @@ pub fn generate_default_impl(
         return None;
     }
 
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
     let map_type = config.backing.to_tokens();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
@@ -179,7 +258,7 @@ pub fn generate_default_impl(
         impl #impl_generics ::std::default::Default for #struct_name #ty_generics #where_clause {
             fn default() -> Self {
                 Self {
-                    inner: #map_type::new(),
+                    inner: <#map_type<#field_enum, #value_enum #ty_generics> as ::structible::BackingMap<#field_enum, #value_enum #ty_generics>>::new(),
                 }
             }
         }
@@ -190,11 +269,12 @@ fn generate_constructor(
     struct_name: &Ident,
     fields: &[FieldInfo],
     config: &StructibleConfig,
-    _generics: &Generics,
+    generics: &Generics,
 ) -> TokenStream {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
     let map_type = config.backing.to_tokens();
+    let (_, ty_generics, _) = generics.split_for_impl();
 
     // Only required (non-optional) fields in constructor, excluding unknown fields
     let required: Vec<_> = fields
@@ -217,7 +297,7 @@ fn generate_constructor(
             let name = &f.name;
             let variant = to_pascal_case(&f.name);
             quote! {
-                inner.insert(#field_enum::#variant, #value_enum::#variant(#name));
+                ::structible::BackingMap::insert(&mut inner, #field_enum::#variant, #value_enum::#variant(#name));
             }
         })
         .collect();
@@ -230,7 +310,7 @@ fn generate_constructor(
     quote! {
         /// Creates a new instance with all required fields.
         pub fn #constructor_name(#(#params),*) -> Self {
-            let mut inner = #map_type::new();
+            let mut inner = <#map_type<#field_enum, #value_enum #ty_generics> as ::structible::BackingMap<#field_enum, #value_enum #ty_generics>>::new();
             #(#inserts)*
             Self { inner }
         }
@@ -255,7 +335,7 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Gener
                 let inner_ty = &f.inner_ty;
                 quote! {
                     #vis fn #getter_name(&self) -> Option<&#inner_ty> {
-                        match self.inner.get(&#field_enum::#variant) {
+                        match ::structible::BackingMap::get(&self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => Some(v),
                             _ => None,
                         }
@@ -265,7 +345,7 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Gener
                 let ty = &f.ty;
                 quote! {
                     #vis fn #getter_name(&self) -> &#ty {
-                        match self.inner.get(&#field_enum::#variant) {
+                        match ::structible::BackingMap::get(&self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => v,
                             _ => panic!("required field `{}` not present", stringify!(#name)),
                         }
@@ -297,7 +377,7 @@ fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo], _generics: &G
                 let inner_ty = &f.inner_ty;
                 quote! {
                     #vis fn #getter_mut_name(&mut self) -> Option<&mut #inner_ty> {
-                        match self.inner.get_mut(&#field_enum::#variant) {
+                        match ::structible::BackingMap::get_mut(&mut self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => Some(v),
                             _ => None,
                         }
@@ -307,7 +387,7 @@ fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo], _generics: &G
                 let ty = &f.ty;
                 quote! {
                     #vis fn #getter_mut_name(&mut self) -> &mut #ty {
-                        match self.inner.get_mut(&#field_enum::#variant) {
+                        match ::structible::BackingMap::get_mut(&mut self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => v,
                             _ => panic!("required field `{}` not present", stringify!(#name)),
                         }
@@ -341,10 +421,10 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Gener
                     #vis fn #setter_name(&mut self, value: Option<#inner_ty>) {
                         match value {
                             Some(v) => {
-                                self.inner.insert(#field_enum::#variant, #value_enum::#variant(v));
+                                ::structible::BackingMap::insert(&mut self.inner, #field_enum::#variant, #value_enum::#variant(v));
                             }
                             None => {
-                                self.inner.remove(&#field_enum::#variant);
+                                ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant);
                             }
                         }
                     }
@@ -353,7 +433,7 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Gener
                 let ty = &f.ty;
                 quote! {
                     #vis fn #setter_name(&mut self, value: #ty) {
-                        self.inner.insert(#field_enum::#variant, #value_enum::#variant(value));
+                        ::structible::BackingMap::insert(&mut self.inner, #field_enum::#variant, #value_enum::#variant(value));
                     }
                 }
             }
@@ -385,7 +465,8 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo], _ge
         /// Inserts an unknown field with the given key and value.
         /// Returns the previous value if the key was already present.
         #vis fn #add_method(&mut self, key: #key_type, value: #value_type) -> Option<#value_type> {
-            match self.inner.insert(
+            match ::structible::BackingMap::insert(
+                &mut self.inner,
                 #field_enum::Unknown(key),
                 #value_enum::Unknown(value)
             ) {
@@ -400,9 +481,9 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo], _ge
             #key_type: ::std::borrow::Borrow<__Q>,
             __Q: ::std::hash::Hash + ::std::cmp::Eq + ?Sized,
         {
-            // We need to iterate and find because HashMap::get requires the exact key type
+            // We need to iterate and find because the map's get requires the exact key type
             // For borrowed lookups, we compare via Borrow
-            for (k, v) in self.inner.iter() {
+            for (k, v) in ::structible::IterableMap::iter(&self.inner) {
                 if let #field_enum::Unknown(stored_key) = k {
                     if <#key_type as ::std::borrow::Borrow<__Q>>::borrow(stored_key) == key {
                         if let #value_enum::Unknown(val) = v {
@@ -420,7 +501,7 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo], _ge
             #key_type: ::std::borrow::Borrow<__Q>,
             __Q: ::std::hash::Hash + ::std::cmp::Eq + ?Sized,
         {
-            for (k, v) in self.inner.iter_mut() {
+            for (k, v) in ::structible::IterableMap::iter_mut(&mut self.inner) {
                 if let #field_enum::Unknown(stored_key) = k {
                     if <#key_type as ::std::borrow::Borrow<__Q>>::borrow(stored_key) == key {
                         if let #value_enum::Unknown(val) = v {
@@ -434,7 +515,7 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo], _ge
 
         /// Removes an unknown field and returns the value if present.
         #vis fn #remove_method(&mut self, key: &#key_type) -> Option<#value_type> {
-            match self.inner.remove(&#field_enum::Unknown(key.clone())) {
+            match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::Unknown(key.clone())) {
                 Some(#value_enum::Unknown(v)) => Some(v),
                 _ => None,
             }
@@ -442,7 +523,7 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo], _ge
 
         /// Returns an iterator over all unknown fields.
         #vis fn #iter_method(&self) -> impl Iterator<Item = (&#key_type, &#value_type)> {
-            self.inner.iter().filter_map(|(k, v)| {
+            ::structible::IterableMap::iter(&self.inner).filter_map(|(k, v)| {
                 match (k, v) {
                     (#field_enum::Unknown(key), #value_enum::Unknown(value)) => Some((key, value)),
                     _ => None,
@@ -474,7 +555,7 @@ fn generate_removers(struct_name: &Ident, fields: &[FieldInfo], _generics: &Gene
             quote! {
                 /// Removes the field and returns the value if it was present.
                 #vis fn #remover_name(&mut self) -> Option<#inner_ty> {
-                    match self.inner.remove(&#field_enum::#variant) {
+                    match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
                         Some(#value_enum::#variant(v)) => Some(v),
                         _ => None,
                     }
@@ -482,4 +563,129 @@ fn generate_removers(struct_name: &Ident, fields: &[FieldInfo], _generics: &Gene
             }
         })
         .collect()
+}
+
+/// Generate `take_*` methods for extracting owned values from fields.
+///
+/// Unlike `remove_*` (optional fields only), `take_*` is generated for all fields.
+/// Required fields panic if missing; optional fields return `Option<T>`.
+fn generate_take_methods(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
+
+    fields
+        .iter()
+        .filter(|f| !f.is_unknown_field())
+        .map(|f| {
+            let name = &f.name;
+            let take_name = format_ident!("take_{}", name);
+            let variant = to_pascal_case(name);
+            let vis = &f.vis;
+
+            if f.is_optional {
+                let inner_ty = &f.inner_ty;
+                quote! {
+                    /// Removes and returns the field value if present.
+                    #vis fn #take_name(&mut self) -> Option<#inner_ty> {
+                        match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
+                            Some(#value_enum::#variant(v)) => Some(v),
+                            _ => None,
+                        }
+                    }
+                }
+            } else {
+                let ty = &f.ty;
+                quote! {
+                    /// Removes and returns the field value.
+                    ///
+                    /// # Panics
+                    /// Panics if the field is not present (invariant violation).
+                    #vis fn #take_name(&mut self) -> #ty {
+                        match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
+                            Some(#value_enum::#variant(v)) => v,
+                            _ => panic!("required field `{}` not present", stringify!(#name)),
+                        }
+                    }
+                }
+            }
+        })
+        .collect()
+}
+
+/// Generate the `into_fields` method for full ownership extraction.
+///
+/// This method consumes the struct and returns a companion struct with all field values.
+fn generate_into_fields(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    generics: &Generics,
+) -> TokenStream {
+    let fields_struct = fields_struct_name(struct_name);
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
+    let (_, ty_generics, _) = generics.split_for_impl();
+
+    // Generate extraction for each known field
+    let extractions: Vec<_> = fields
+        .iter()
+        .filter(|f| !f.is_unknown_field())
+        .map(|f| {
+            let name = &f.name;
+            let variant = to_pascal_case(name);
+
+            if f.is_optional {
+                quote! {
+                    let #name = match ::structible::BackingMap::remove(&mut inner, &#field_enum::#variant) {
+                        Some(#value_enum::#variant(v)) => Some(v),
+                        _ => None,
+                    };
+                }
+            } else {
+                quote! {
+                    let #name = match ::structible::BackingMap::remove(&mut inner, &#field_enum::#variant) {
+                        Some(#value_enum::#variant(v)) => v,
+                        _ => panic!("required field `{}` not present", stringify!(#name)),
+                    };
+                }
+            }
+        })
+        .collect();
+
+    // Generate field names for struct construction
+    let field_names: Vec<_> = fields
+        .iter()
+        .filter(|f| !f.is_unknown_field())
+        .map(|f| &f.name)
+        .collect();
+
+    // Add phantom field initialization if there are type parameters
+    let has_type_params = generics.type_params().next().is_some();
+    let phantom_init = if has_type_params {
+        quote! { _phantom: ::std::marker::PhantomData, }
+    } else {
+        quote! {}
+    };
+
+    quote! {
+        /// Consumes this struct and returns a companion struct with all owned field values.
+        ///
+        /// The returned struct can be destructured using pattern matching:
+        /// ```ignore
+        /// let Fields { name, age, .. } = value.into_fields();
+        /// ```
+        ///
+        /// **Note**: Any unknown/extension fields are discarded. If you need to preserve them,
+        /// extract them first using `*_iter()` or use individual `take_*` methods instead.
+        ///
+        /// # Panics
+        /// Panics if any required field is missing (invariant violation).
+        pub fn into_fields(self) -> #fields_struct #ty_generics {
+            let mut inner = self.inner;
+            #(#extractions)*
+            #fields_struct {
+                #(#field_names,)*
+                #phantom_init
+            }
+        }
+    }
 }
