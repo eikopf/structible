@@ -67,6 +67,60 @@ fn test_remove_unknown_field() {
 }
 
 #[test]
+fn test_remove_with_borrowed_str() {
+    let mut person = Person::new("Alice".into(), 30);
+    person.add_extra("key1".into(), "value1".into());
+    person.add_extra("key2".into(), "value2".into());
+
+    // Remove using &str directly (the ergonomic API)
+    let removed = person.remove_extra("key1");
+    assert_eq!(removed, Some("value1".to_string()));
+
+    // Remove using a str slice from another string
+    let key = String::from("key2");
+    let removed = person.remove_extra(key.as_str());
+    assert_eq!(removed, Some("value2".to_string()));
+}
+
+#[test]
+fn test_remove_with_owned_string_ref() {
+    let mut person = Person::new("Alice".into(), 30);
+    person.add_extra("mykey".into(), "myvalue".into());
+
+    // Remove using &String (backwards compatibility)
+    let key = String::from("mykey");
+    let removed = person.remove_extra(&key);
+    assert_eq!(removed, Some("myvalue".to_string()));
+}
+
+#[test]
+fn test_remove_nonexistent_key() {
+    let mut person = Person::new("Alice".into(), 30);
+    person.add_extra("exists".into(), "value".into());
+
+    // Removing a key that doesn't exist returns None
+    let removed = person.remove_extra("does_not_exist");
+    assert!(removed.is_none());
+
+    // Original key still present
+    assert_eq!(person.extra("exists"), Some(&"value".to_string()));
+}
+
+#[test]
+fn test_remove_same_key_twice() {
+    let mut person = Person::new("Alice".into(), 30);
+    person.add_extra("once".into(), "only".into());
+
+    // First removal succeeds
+    let first = person.remove_extra("once");
+    assert_eq!(first, Some("only".to_string()));
+
+    // Second removal returns None
+    let second = person.remove_extra("once");
+    assert!(second.is_none());
+}
+
+#[test]
 fn test_iterate_unknown_fields() {
     let mut person = Person::new("Alice".into(), 30);
     person.add_extra("a".into(), "1".into());
