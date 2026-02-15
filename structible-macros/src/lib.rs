@@ -55,7 +55,7 @@ pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let field_enum = generate_field_enum(name, &fields);
     let value_enum = generate_value_enum(name, &fields, generics);
-    let fields_struct = generate_fields_struct(name, vis, &fields, generics);
+    let fields_struct = generate_fields_struct(name, vis, &fields, &config, generics);
     let struct_def = generate_struct(name, vis, &config, attrs, generics);
     let impl_block = generate_impl(name, &fields, &config, generics);
     let default_impl = generate_default_impl(name, &fields, &config, generics);

@@ -75,3 +75,27 @@ fn test_iterate_unknown_fields() {
     let entries: Vec<_> = person.extra_iter().collect();
     assert_eq!(entries.len(), 2);
 }
+
+#[test]
+fn test_into_fields_with_unknown() {
+    let mut person = Person::new("Alice".into(), 30);
+    person.add_extra("color".into(), "blue".into());
+    person.add_extra("size".into(), "medium".into());
+
+    let fields = person.into_fields();
+
+    // Known fields are present
+    assert_eq!(fields.name, "Alice");
+    assert_eq!(fields.age, 30);
+
+    // Unknown fields are collected into the extra map
+    assert_eq!(fields.extra.len(), 2);
+    assert_eq!(
+        structible::BackingMap::get(&fields.extra, &"color".to_string()),
+        Some(&"blue".to_string())
+    );
+    assert_eq!(
+        structible::BackingMap::get(&fields.extra, &"size".to_string()),
+        Some(&"medium".to_string())
+    );
+}
