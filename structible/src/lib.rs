@@ -13,9 +13,18 @@ pub use structible_macros::structible;
 ///
 /// Users can implement this trait for custom map types to use them as
 /// backing storage.
-pub trait BackingMap<K, V> {
+pub trait BackingMap<K, V>: Sized {
     /// Creates a new, empty map.
     fn new() -> Self;
+
+    /// Creates a new, empty map with capacity for at least `capacity` elements.
+    ///
+    /// Map types that don't support pre-allocation (like `BTreeMap`) can ignore
+    /// the capacity hint and just call `new()`.
+    fn with_capacity(capacity: usize) -> Self {
+        let _ = capacity;
+        Self::new()
+    }
 
     /// Inserts a key-value pair into the map, returning the previous value if present.
     fn insert(&mut self, key: K, value: V) -> Option<V>;
@@ -42,6 +51,10 @@ where
 {
     fn new() -> Self {
         HashMap::new()
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
+        HashMap::with_capacity(capacity)
     }
 
     fn insert(&mut self, key: K, value: V) -> Option<V> {

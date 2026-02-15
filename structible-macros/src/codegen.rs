@@ -307,10 +307,12 @@ fn generate_constructor(
         .clone()
         .unwrap_or_else(|| format_ident!("new"));
 
+    let required_count = required.len();
+
     quote! {
         /// Creates a new instance with all required fields.
         pub fn #constructor_name(#(#params),*) -> Self {
-            let mut inner = <#map_type<#field_enum, #value_enum #ty_generics> as ::structible::BackingMap<#field_enum, #value_enum #ty_generics>>::new();
+            let mut inner = <#map_type<#field_enum, #value_enum #ty_generics> as ::structible::BackingMap<#field_enum, #value_enum #ty_generics>>::with_capacity(#required_count);
             #(#inserts)*
             Self { inner }
         }
