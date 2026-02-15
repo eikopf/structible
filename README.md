@@ -50,7 +50,7 @@ while internally storing data in a `HashMap` or `BTreeMap`.
 
 The `new` method accepts all *required* (non-`Option`) fields:
 
-```rust
+```rust,ignore
 impl Person {
     pub fn new(name: String, age: u32) -> Self;
 }
@@ -63,14 +63,14 @@ Optional fields start absent from the map and can be set via setters.
 For required fields, getters return a reference directly and panic if
 the field is unexpectedly absent (a violation of type invariants):
 
-```rust
+```rust,ignore
 pub fn name(&self) -> &String;
 pub fn age(&self) -> &u32;
 ```
 
 For optional fields, getters return `Option<&T>`:
 
-```rust
+```rust,ignore
 pub fn email(&self) -> Option<&String>;
 ```
 
@@ -78,7 +78,7 @@ pub fn email(&self) -> Option<&String>;
 
 Mutable access follows the same pattern:
 
-```rust
+```rust,ignore
 pub fn name_mut(&mut self) -> &mut String;
 pub fn age_mut(&mut self) -> &mut u32;
 pub fn email_mut(&mut self) -> Option<&mut String>;
@@ -88,7 +88,7 @@ pub fn email_mut(&mut self) -> Option<&mut String>;
 
 For required fields, setters take the value directly:
 
-```rust
+```rust,ignore
 pub fn set_name(&mut self, value: String);
 pub fn set_age(&mut self, value: u32);
 ```
@@ -96,7 +96,7 @@ pub fn set_age(&mut self, value: u32);
 For optional fields, setters take `Option<T>`. Passing `None` removes
 the field from the map:
 
-```rust
+```rust,ignore
 pub fn set_email(&mut self, value: Option<String>);
 ```
 
@@ -105,7 +105,7 @@ pub fn set_email(&mut self, value: Option<String>);
 Only optional fields have remover methods, which remove the field from
 the map and return the value if present:
 
-```rust
+```rust,ignore
 pub fn remove_email(&mut self) -> Option<String>;
 ```
 
@@ -113,7 +113,7 @@ pub fn remove_email(&mut self) -> Option<String>;
 
 Methods for querying the struct's state:
 
-```rust
+```rust,ignore
 pub fn len(&self) -> usize;      // Number of fields present
 pub fn is_empty(&self) -> bool;  // True if no fields are present
 ```
@@ -131,7 +131,7 @@ The macro accepts the following attributes:
 | `HashMap` | `std::collections::HashMap` (default) |
 | `BTreeMap` | `std::collections::BTreeMap` |
 
-```rust
+```rust,ignore
 #[structible]                       // Uses HashMap by default
 struct Foo { /* ... */ }
 
@@ -149,7 +149,7 @@ keys should be `Ord` rather than `Hash`.
 
 **Optional.** Customizes the name of the constructor method.
 
-```rust
+```rust,ignore
 #[structible(constructor = create)]
 pub struct Person {
     pub name: String,
@@ -170,7 +170,7 @@ Field-level `#[structible(...)]` attributes customize accessor method names:
 | `remove = name` | `remove_{field}` | Remover method name (optional fields only) |
 | `key = Type` | — | Marks field as unknown/extension fields catch-all |
 
-```rust
+```rust,ignore
 #[structible]
 pub struct Person {
     #[structible(get = full_name, set = rename)]
@@ -193,7 +193,7 @@ The `key` attribute marks a field as a catch-all for unknown or extension
 fields. This is useful for extensible data models where additional key-value
 pairs may be present beyond the statically-known fields.
 
-```rust
+```rust,ignore
 #[structible]
 pub struct Person {
     pub name: String,
@@ -214,7 +214,7 @@ Unknown fields are stored in the same backing map as known fields, using an
 
 For a field named `extra` with key type `String` and value type `Value`:
 
-```rust
+```rust,ignore
 // Insert an unknown field, returning the previous value if present
 pub fn add_extra(&mut self, key: String, value: Value) -> Option<Value>;
 
@@ -239,7 +239,7 @@ pub fn extra_iter(&self) -> impl Iterator<Item = (&String, &Value)>;
 
 #### Example Usage
 
-```rust
+```rust,ignore
 let mut person = Person::new("Alice".into(), 30);
 
 // Add unknown fields
@@ -318,7 +318,6 @@ implement `Default` because there are no sensible default values for them.
 
 - Only named struct fields are supported (no tuple structs or unit structs)
 - Field types must be `Clone` for the value enum to derive `Clone`
-- Generic structs are not currently supported
 - At most one unknown/extension field per struct
 
 ## License
