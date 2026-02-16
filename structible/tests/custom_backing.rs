@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use structible::{structible, BackingMap, IterableMap};
+use structible::{BackingMap, IterableMap, structible};
 
 // A simple wrapper around BTreeMap to demonstrate custom backing types
 #[derive(Debug, Clone, PartialEq)]

@@ -1,3 +1,36 @@
+//! Procedural macro implementation for `structible`.
+//!
+//! This crate provides the `#[structible]` attribute macro, which transforms
+//! structs into map-backed types with generated accessors. Users should depend
+//! on the main `structible` crate, which re-exports this macro.
+//!
+//! # Design
+//!
+//! The macro generates several items from a single struct definition:
+//!
+//! - A **field enum** used as map keys (one variant per field)
+//! - A **value enum** used as map values (wrapping each field's type)
+//! - A **fields struct** for ownership extraction via `into_fields()`
+//! - The **main struct** backed by the chosen map type
+//! - An **impl block** with accessors for all fields
+//!
+//! # Invariants
+//!
+//! Required fields (non-`Option`) are guaranteed to be present after
+//! construction. The generated constructor enforces this by requiring values
+//! for all required fields. Getters for required fields return references
+//! directly, not `Option`, because the field is always present.
+//!
+//! # Optional Field Storage
+//!
+//! Fields typed as `Option<T>` are stored as `T` in the backing map, not as
+//! `Option<T>`. Presence or absence in the map represents `Some` or `None`.
+//! This means:
+//!
+//! - Getters return `Option<&T>` (present = `Some`, absent = `None`)
+//! - Setters accept `Option<T>` (`Some` inserts, `None` removes)
+//! - Removers extract the value if present
+
 extern crate proc_macro;
 
 mod codegen;
@@ -6,13 +39,13 @@ mod util;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemStruct};
+use syn::{ItemStruct, parse_macro_input};
 
 use crate::codegen::{
     generate_default_impl, generate_field_enum, generate_fields_struct, generate_impl,
     generate_struct, generate_value_enum,
 };
-use crate::parse::{parse_struct_fields, StructibleConfig};
+use crate::parse::{StructibleConfig, parse_struct_fields};
 
 /// Transforms a struct into a map-backed type with generated accessors.
 ///
@@ -21,7 +54,7 @@ use crate::parse::{parse_struct_fields, StructibleConfig};
 /// ```ignore
 /// use structible::structible;
 ///
-/// #[structible(backing = HashMap)]
+/// #[structible(HashMap)]
 /// pub struct Person {
 ///     pub name: String,
 ///     pub age: u32,
@@ -30,10 +63,29 @@ use crate::parse::{parse_struct_fields, StructibleConfig};
 /// ```
 ///
 /// This generates:
-/// - `PersonField` enum for map keys
-/// - `PersonValue` enum for map values
-/// - `Person` struct backed by `HashMap<PersonField, PersonValue>`
-/// - Getters, setters, builders, and removers for each field
+/// - A field enum for map keys (one variant per field)
+/// - A value enum for map values (wrapping each field type)
+/// - A `PersonFields` struct for ownership extraction
+/// - The `Person` struct backed by `HashMap`
+/// - Getters, setters, and removers for each field
+///
+/// # Optional Fields
+///
+/// Fields typed as `Option<T>` are stored without the `Option` wrapper.
+/// Presence in the map represents `Some`, absence represents `None`:
+///
+/// - `email()` returns `Option<&String>`
+/// - `set_email(Some(v))` inserts the value
+/// - `set_email(None)` removes the value
+/// - `remove_email()` extracts and returns the value if present
+///
+/// # Required Fields
+///
+/// Non-optional fields are guaranteed present after construction:
+///
+/// - `name()` returns `&String` (not `Option`)
+/// - `set_name(v)` replaces the value
+/// - `take_name()` extracts the owned value
 #[proc_macro_attribute]
 pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
     let config = match syn::parse::<StructibleConfig>(attr) {

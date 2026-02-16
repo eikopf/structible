@@ -254,7 +254,10 @@ pub fn parse_struct_fields(item: &ItemStruct) -> syn::Result<Vec<FieldInfo>> {
         }
     };
 
-    let parsed: Vec<FieldInfo> = fields.iter().map(FieldInfo::from_field).collect::<Result<_, _>>()?;
+    let parsed: Vec<FieldInfo> = fields
+        .iter()
+        .map(FieldInfo::from_field)
+        .collect::<Result<_, _>>()?;
 
     // Validate: at most one unknown field
     let unknown_fields: Vec<_> = parsed.iter().filter(|f| f.is_unknown_field()).collect();

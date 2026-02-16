@@ -67,7 +67,11 @@ pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
 }
 
 /// Generate the value enum (used as map values).
-pub fn generate_value_enum(struct_name: &Ident, fields: &[FieldInfo], generics: &Generics) -> TokenStream {
+pub fn generate_value_enum(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    generics: &Generics,
+) -> TokenStream {
     let enum_name = value_enum_name(struct_name);
     let (impl_generics, _ty_generics, where_clause) = generics.split_for_impl();
 
@@ -146,10 +150,7 @@ pub fn generate_fields_struct(
 
     // Collect type parameters to ensure they're all used (some may only appear in unknown fields)
     // We add a PhantomData field if there are any type parameters
-    let type_params: Vec<_> = generics
-        .type_params()
-        .map(|tp| &tp.ident)
-        .collect();
+    let type_params: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
 
     let phantom_field = if type_params.is_empty() {
         quote! {}
@@ -338,7 +339,11 @@ fn generate_constructor(
     }
 }
 
-fn generate_getters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
+fn generate_getters(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    _generics: &Generics,
+) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 
@@ -377,7 +382,11 @@ fn generate_getters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Gener
         .collect()
 }
 
-fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
+fn generate_getters_mut(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    _generics: &Generics,
+) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 
@@ -419,7 +428,11 @@ fn generate_getters_mut(struct_name: &Ident, fields: &[FieldInfo], _generics: &G
         .collect()
 }
 
-fn generate_setters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
+fn generate_setters(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    _generics: &Generics,
+) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 
@@ -463,7 +476,11 @@ fn generate_setters(struct_name: &Ident, fields: &[FieldInfo], _generics: &Gener
 }
 
 /// Generate methods for the unknown fields catch-all.
-fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> TokenStream {
+fn generate_unknown_field_methods(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    _generics: &Generics,
+) -> TokenStream {
     let Some(unknown_field) = fields.iter().find(|f| f.is_unknown_field()) else {
         return quote! {};
     };
@@ -559,7 +576,11 @@ fn generate_unknown_field_methods(struct_name: &Ident, fields: &[FieldInfo], _ge
     }
 }
 
-fn generate_removers(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
+fn generate_removers(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    _generics: &Generics,
+) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 
@@ -595,7 +616,11 @@ fn generate_removers(struct_name: &Ident, fields: &[FieldInfo], _generics: &Gene
 ///
 /// Unlike `remove_*` (optional fields only), `take_*` is generated for all fields.
 /// Required fields panic if missing; optional fields return `Option<T>`.
-fn generate_take_methods(struct_name: &Ident, fields: &[FieldInfo], _generics: &Generics) -> Vec<TokenStream> {
+fn generate_take_methods(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    _generics: &Generics,
+) -> Vec<TokenStream> {
     let field_enum = field_enum_name(struct_name);
     let value_enum = value_enum_name(struct_name);
 
