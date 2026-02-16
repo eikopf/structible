@@ -57,15 +57,15 @@ pub struct Person {
 Into:
 1. `__StructibleField_Person` - Hidden enum for map keys (one variant per field)
 2. `__StructibleValue_Person` - Hidden enum for map values (wraps each field type)
-3. `PersonFields` - Companion struct for ownership extraction via `into_fields()`
+3. `PersonFields` - HashMap-backed companion struct for ownership extraction via `into_fields()`
 4. `Person` struct with an `inner: HashMap<__StructibleField_Person, __StructibleValue_Person>` field
 5. Generated methods:
    - Constructor (`new` or custom name via `constructor = name`)
    - Getters, mutable getters, setters for all fields
    - Removers for optional fields
-   - `take_*` methods for extracting owned values (panics for required fields if missing)
+   - `take_*` methods for optional fields only (use `into_fields()` for required fields)
    - `into_fields()` for full ownership extraction into the companion struct
-   - `len()` and `is_empty()` for querying map size
+   - `len()` and `is_empty()` (opt-in via `with_len`)
 6. `Default` impl (only if all fields are optional)
 
 ### Attribute Syntax
@@ -74,6 +74,7 @@ Into:
 - `#[structible(HashMap)]` - Shorthand for backing type (defaults to `HashMap`)
 - `#[structible(backing = BTreeMap)]` - Explicit backing type
 - `#[structible(backing = HashMap, constructor = create)]` - Custom constructor name
+- `#[structible(with_len)]` - Enable `len()` and `is_empty()` methods
 
 **Field-level:**
 - `#[structible(get = custom_getter)]` - Custom getter name
@@ -86,6 +87,9 @@ Into:
 
 - Optional fields (`Option<T>`) are stored without the `Option` wrapper; presence/absence in the map represents `Some`/`None`
 - Required field getters panic if the field is missing (invariant violation)
+- `take_*` methods are only generated for optional fields to prevent leaving the struct in an invalid state; use `into_fields()` to extract required field ownership
+- The `Fields` companion struct is HashMap-backed for stack-friendliness; all fields are extracted via `take_*` methods returning `Option<T>`
+- `len()` and `is_empty()` are opt-in via `#[structible(with_len)]` to avoid conflicts with user-defined methods
 - Unknown/extension fields use a `#[structible(key = Type)]` attribute and generate an `Unknown(K)` variant in the field enum
 - The field enum derives `Copy` only when there's no unknown field (since unknown keys may not be `Copy`)
 - Unknown fields require the `IterableMap` trait for iteration support
