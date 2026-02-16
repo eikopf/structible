@@ -39,7 +39,7 @@ impl<K: Ord, V> BackingMap<K, V> for MyMap<K, V> {
     }
 }
 
-#[structible(backing = MyMap)]
+#[structible(backing = MyMap, with_len)]
 pub struct Config {
     pub name: String,
     pub value: u32,

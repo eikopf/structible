@@ -228,6 +228,22 @@ pub fn generate_impl(
     let unknown_methods = generate_unknown_field_methods(struct_name, fields, generics);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
+    let len_methods = if config.with_len {
+        quote! {
+            /// Returns the number of fields currently present.
+            pub fn len(&self) -> usize {
+                ::structible::BackingMap::len(&self.inner)
+            }
+
+            /// Returns true if no fields are present.
+            pub fn is_empty(&self) -> bool {
+                ::structible::BackingMap::is_empty(&self.inner)
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
         impl #impl_generics #struct_name #ty_generics #where_clause {
             #constructor
@@ -238,16 +254,7 @@ pub fn generate_impl(
             #(#take_methods)*
             #into_fields
             #unknown_methods
-
-            /// Returns the number of fields currently present.
-            pub fn len(&self) -> usize {
-                ::structible::BackingMap::len(&self.inner)
-            }
-
-            /// Returns true if no fields are present.
-            pub fn is_empty(&self) -> bool {
-                ::structible::BackingMap::is_empty(&self.inner)
-            }
+            #len_methods
         }
     }
 }

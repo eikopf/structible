@@ -1,6 +1,5 @@
 use proc_macro2::TokenStream;
 use syn::parse::{Parse, ParseStream};
-use syn::punctuated::Punctuated;
 use syn::{Attribute, Field, Ident, ItemStruct, Token, Type, Visibility};
 
 use crate::util::extract_option_inner;
@@ -40,6 +39,8 @@ impl Default for BackingType {
 pub struct StructibleConfig {
     pub backing: BackingType,
     pub constructor: Option<Ident>,
+    /// If true, generate `len()` and `is_empty()` methods.
+    pub with_len: bool,
 }
 
 /// Configuration parsed from `#[structible(...)]` attribute on a field.
@@ -60,15 +61,19 @@ impl Parse for StructibleConfig {
             return Ok(StructibleConfig {
                 backing: BackingType::default(),
                 constructor: None,
+                with_len: false,
             });
         }
 
-        // Try to parse as a shorthand (just a type, not key = value)
+        // Try to parse as a shorthand (just a type, not key = value or flag)
         // We detect this by checking if it looks like `backing = ...` or `constructor = ...`
+        // or a known flag like `with_len`
         let fork = input.fork();
-        if let Ok(_first_ident) = fork.parse::<Ident>() {
+        if let Ok(first_ident) = fork.parse::<Ident>() {
             let is_key_value = fork.peek(Token![=]);
-            if !is_key_value {
+            let is_flag = first_ident == "with_len";
+            let has_more = fork.peek(Token![,]);
+            if !is_key_value && !is_flag && !has_more {
                 // This is a shorthand type specification
                 // Parse the full type (could be `HashMap`, `indexmap::IndexMap`, etc.)
                 let ty: Type = input.parse()?;
@@ -76,42 +81,56 @@ impl Parse for StructibleConfig {
                 return Ok(StructibleConfig {
                     backing,
                     constructor: None,
+                    with_len: false,
                 });
             }
         }
 
-        // Parse as key-value pairs
+        // Parse as comma-separated items (key-value pairs or flags)
         let mut backing = None;
         let mut constructor = None;
+        let mut with_len = false;
 
-        let pairs = Punctuated::<MetaItemGeneric, Token![,]>::parse_terminated(input)?;
+        while !input.is_empty() {
+            let key: Ident = input.parse()?;
 
-        for item in pairs {
-            match item.key.to_string().as_str() {
+            match key.to_string().as_str() {
                 "backing" => {
-                    backing = Some(BackingType::from_type(item.value_type));
+                    let _: Token![=] = input.parse()?;
+                    let ty: Type = input.parse()?;
+                    backing = Some(BackingType::from_type(ty));
                 }
                 "constructor" => {
+                    let _: Token![=] = input.parse()?;
+                    let ty: Type = input.parse()?;
                     // Constructor expects an identifier, not a type
-                    let ident = match item.value_type {
+                    let ident = match ty {
                         Type::Path(ref p) if p.path.get_ident().is_some() => {
                             p.path.get_ident().unwrap().clone()
                         }
                         _ => {
                             return Err(syn::Error::new_spanned(
-                                item.value_type,
+                                ty,
                                 "constructor must be an identifier",
                             ));
                         }
                     };
                     constructor = Some(ident);
                 }
+                "with_len" => {
+                    with_len = true;
+                }
                 other => {
                     return Err(syn::Error::new(
-                        item.key.span(),
+                        key.span(),
                         format!("unknown attribute `{}`", other),
                     ));
                 }
+            }
+
+            // Consume optional comma
+            if input.peek(Token![,]) {
+                let _: Token![,] = input.parse()?;
             }
         }
 
@@ -121,21 +140,8 @@ impl Parse for StructibleConfig {
         Ok(StructibleConfig {
             backing,
             constructor,
+            with_len,
         })
-    }
-}
-
-struct MetaItemGeneric {
-    key: Ident,
-    value_type: Type,
-}
-
-impl Parse for MetaItemGeneric {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let key: Ident = input.parse()?;
-        let _: Token![=] = input.parse()?;
-        let value_type: Type = input.parse()?;
-        Ok(MetaItemGeneric { key, value_type })
     }
 }
 
