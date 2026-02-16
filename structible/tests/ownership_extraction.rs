@@ -42,17 +42,6 @@ fn test_pattern_matching_destructure() {
 }
 
 #[test]
-fn test_take_required_field() {
-    let mut person = Person::new("Diana".into(), 35);
-
-    let name = person.take_name();
-    assert_eq!(name, "Diana");
-
-    let age = person.take_age();
-    assert_eq!(age, 35);
-}
-
-#[test]
 fn test_take_optional_field_present() {
     let mut person = Person::new("Eve".into(), 28);
     person.set_email(Some("eve@example.com".into()));
@@ -70,25 +59,17 @@ fn test_take_optional_field_absent() {
 }
 
 #[test]
-#[should_panic(expected = "required field")]
-fn test_take_required_field_twice_panics() {
-    let mut person = Person::new("Grace".into(), 22);
-
-    let _name1 = person.take_name();
-    let _name2 = person.take_name(); // Should panic
-}
-
-#[test]
 fn test_take_does_not_consume_struct() {
     let mut person = Person::new("Henry".into(), 45);
     person.set_email(Some("henry@example.com".into()));
 
-    let name = person.take_name();
-    assert_eq!(name, "Henry");
+    // Take optional field
+    let email = person.take_email();
+    assert_eq!(email, Some("henry@example.com".into()));
 
-    // age and email still accessible
+    // Required fields still accessible via getters
+    assert_eq!(person.name(), "Henry");
     assert_eq!(*person.age(), 45);
-    assert_eq!(person.email(), Some(&"henry@example.com".into()));
 }
 
 // Generic struct test
@@ -112,9 +93,14 @@ fn test_generic_into_fields() {
 #[test]
 fn test_generic_take_methods() {
     let mut container = Container::new(vec![1, 2, 3]);
+    container.set_label(Some("test".into()));
 
-    let value = container.take_value();
-    assert_eq!(value, vec![1, 2, 3]);
+    // Only optional fields have take_* methods
+    let label = container.take_label();
+    assert_eq!(label, Some("test".into()));
+
+    // Required field still accessible via getter
+    assert_eq!(*container.value(), vec![1, 2, 3]);
 }
 
 #[test]
@@ -140,17 +126,6 @@ fn test_multiple_generics_into_fields() {
 
     assert_eq!(fields.key, "id");
     assert_eq!(fields.value, 123);
-}
-
-#[test]
-fn test_multiple_generics_take() {
-    let mut pair = Pair::new(1, "one");
-
-    let key = pair.take_key();
-    let value = pair.take_value();
-
-    assert_eq!(key, 1);
-    assert_eq!(value, "one");
 }
 
 // Test that Fields struct derives the expected traits
