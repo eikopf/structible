@@ -42,8 +42,8 @@ use quote::quote;
 use syn::{ItemStruct, parse_macro_input};
 
 use crate::codegen::{
-    generate_default_impl, generate_field_enum, generate_fields_struct, generate_impl,
-    generate_struct, generate_value_enum,
+    generate_default_impl, generate_field_enum, generate_fields_impl, generate_fields_struct,
+    generate_impl, generate_struct, generate_value_enum,
 };
 use crate::parse::{StructibleConfig, parse_struct_fields};
 
@@ -85,7 +85,7 @@ use crate::parse::{StructibleConfig, parse_struct_fields};
 ///
 /// - `name()` returns `&String` (not `Option`)
 /// - `set_name(v)` replaces the value
-/// - `take_name()` extracts the owned value
+/// - Use `into_fields()` then `take_name()` to extract owned value
 #[proc_macro_attribute]
 pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
     let config = match syn::parse::<StructibleConfig>(attr) {
@@ -108,6 +108,7 @@ pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
     let field_enum = generate_field_enum(name, &fields);
     let value_enum = generate_value_enum(name, &fields, generics);
     let fields_struct = generate_fields_struct(name, vis, &fields, &config, generics);
+    let fields_impl = generate_fields_impl(name, &fields, &config, generics);
     let struct_def = generate_struct(name, vis, &config, attrs, generics);
     let impl_block = generate_impl(name, &fields, &config, generics);
     let default_impl = generate_default_impl(name, &fields, &config, generics);
@@ -116,6 +117,7 @@ pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
         #field_enum
         #value_enum
         #fields_struct
+        #fields_impl
         #struct_def
         #impl_block
         #default_impl

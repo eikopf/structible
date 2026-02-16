@@ -102,10 +102,10 @@ pub struct AllOptional {
 #[test]
 fn test_into_fields_all_none() {
     let obj = AllOptional::default();
-    let fields = obj.into_fields();
-    assert_eq!(fields.a, None);
-    assert_eq!(fields.b, None);
-    assert_eq!(fields.c, None);
+    let mut fields = obj.into_fields();
+    assert_eq!(fields.take_a(), None);
+    assert_eq!(fields.take_b(), None);
+    assert_eq!(fields.take_c(), None);
 }
 
 #[test]
@@ -115,10 +115,10 @@ fn test_into_fields_all_some() {
     obj.set_b(Some(42));
     obj.set_c(Some(true));
 
-    let fields = obj.into_fields();
-    assert_eq!(fields.a, Some("hello".into()));
-    assert_eq!(fields.b, Some(42));
-    assert_eq!(fields.c, Some(true));
+    let mut fields = obj.into_fields();
+    assert_eq!(fields.take_a(), Some("hello".into()));
+    assert_eq!(fields.take_b(), Some(42));
+    assert_eq!(fields.take_c(), Some(true));
 }
 
 #[test]
@@ -126,10 +126,10 @@ fn test_into_fields_mixed() {
     let mut obj = AllOptional::default();
     obj.set_b(Some(100));
 
-    let fields = obj.into_fields();
-    assert_eq!(fields.a, None);
-    assert_eq!(fields.b, Some(100));
-    assert_eq!(fields.c, None);
+    let mut fields = obj.into_fields();
+    assert_eq!(fields.take_a(), None);
+    assert_eq!(fields.take_b(), Some(100));
+    assert_eq!(fields.take_c(), None);
 }
 
 // Test BTreeMap backing with unknown fields
