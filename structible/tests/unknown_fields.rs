@@ -136,20 +136,44 @@ fn test_into_fields_with_unknown() {
     person.add_extra("color".into(), "blue".into());
     person.add_extra("size".into(), "medium".into());
 
-    let fields = person.into_fields();
+    let mut fields = person.into_fields();
 
-    // Known fields are present
-    assert_eq!(fields.name, "Alice");
-    assert_eq!(fields.age, 30);
+    // Known fields accessible via take_* methods
+    assert_eq!(fields.take_name(), Some("Alice".into()));
+    assert_eq!(fields.take_age(), Some(30));
 
-    // Unknown fields are collected into the extra map
-    assert_eq!(fields.extra.len(), 2);
+    // Unknown fields accessible via take_extra or extra_iter
+    let entries: Vec<_> = fields.extra_iter().collect();
+    assert_eq!(entries.len(), 2);
+
+    // Take individual unknown fields
+    assert_eq!(fields.take_extra("color"), Some("blue".to_string()));
+    assert_eq!(fields.take_extra("size"), Some("medium".to_string()));
+
+    // After taking, they're gone
+    assert_eq!(fields.take_extra("color"), None);
+}
+
+#[test]
+fn test_into_fields_drain_unknown() {
+    let mut person = Person::new("Bob".into(), 25);
+    person.add_extra("key1".into(), "val1".into());
+    person.add_extra("key2".into(), "val2".into());
+
+    let mut fields = person.into_fields();
+
+    // Drain all unknown fields at once
+    let extra = fields.drain_extra();
+    assert_eq!(extra.len(), 2);
     assert_eq!(
-        structible::BackingMap::get(&fields.extra, &"color".to_string()),
-        Some(&"blue".to_string())
+        structible::BackingMap::get(&extra, &"key1".to_string()),
+        Some(&"val1".to_string())
     );
     assert_eq!(
-        structible::BackingMap::get(&fields.extra, &"size".to_string()),
-        Some(&"medium".to_string())
+        structible::BackingMap::get(&extra, &"key2".to_string()),
+        Some(&"val2".to_string())
     );
+
+    // After drain, extra_iter returns nothing
+    assert_eq!(fields.extra_iter().count(), 0);
 }
