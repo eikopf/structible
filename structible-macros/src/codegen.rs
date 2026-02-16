@@ -619,10 +619,10 @@ fn generate_removers(
         .collect()
 }
 
-/// Generate `take_*` methods for extracting owned values from fields.
+/// Generate `take_*` methods for extracting owned values from optional fields.
 ///
-/// Unlike `remove_*` (optional fields only), `take_*` is generated for all fields.
-/// Required fields panic if missing; optional fields return `Option<T>`.
+/// Only generated for optional fields to prevent leaving the struct in an invalid state.
+/// Use `into_fields()` to extract ownership of required fields.
 fn generate_take_methods(
     struct_name: &Ident,
     fields: &[FieldInfo],
@@ -633,36 +633,20 @@ fn generate_take_methods(
 
     fields
         .iter()
-        .filter(|f| !f.is_unknown_field())
+        .filter(|f| f.is_optional && !f.is_unknown_field())
         .map(|f| {
             let name = &f.name;
             let take_name = format_ident!("take_{}", name);
             let variant = to_pascal_case(name);
             let vis = &f.vis;
+            let inner_ty = &f.inner_ty;
 
-            if f.is_optional {
-                let inner_ty = &f.inner_ty;
-                quote! {
-                    /// Removes and returns the field value if present.
-                    #vis fn #take_name(&mut self) -> Option<#inner_ty> {
-                        match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
-                            Some(#value_enum::#variant(v)) => Some(v),
-                            _ => None,
-                        }
-                    }
-                }
-            } else {
-                let ty = &f.ty;
-                quote! {
-                    /// Removes and returns the field value.
-                    ///
-                    /// # Panics
-                    /// Panics if the field is not present (invariant violation).
-                    #vis fn #take_name(&mut self) -> #ty {
-                        match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
-                            Some(#value_enum::#variant(v)) => v,
-                            _ => panic!("required field `{}` not present", stringify!(#name)),
-                        }
+            quote! {
+                /// Removes and returns the field value if present.
+                #vis fn #take_name(&mut self) -> Option<#inner_ty> {
+                    match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
+                        Some(#value_enum::#variant(v)) => Some(v),
+                        _ => None,
                     }
                 }
             }
