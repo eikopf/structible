@@ -168,3 +168,23 @@ fn test_lifetime_field() {
     assert_eq!(*obj.reference(), "hello");
     assert_eq!(obj.owned(), "world");
 }
+
+// Test raw identifiers (e.g., using Rust keywords as field names)
+#[structible]
+pub struct WithRawIdentifiers {
+    pub r#type: String,
+    pub r#match: Option<i32>,
+}
+
+#[test]
+fn test_raw_identifiers() {
+    let mut obj = WithRawIdentifiers::new("keyword".into());
+    assert_eq!(obj.r#type(), "keyword");
+    assert_eq!(obj.r#match(), None);
+
+    obj.set_match(Some(42));
+    assert_eq!(obj.r#match(), Some(&42));
+
+    obj.set_type("updated".into());
+    assert_eq!(obj.r#type(), "updated");
+}

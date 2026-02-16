@@ -36,8 +36,12 @@ pub fn extract_option_inner(ty: &Type) -> Option<&Type> {
 }
 
 /// Converts a snake_case identifier to PascalCase.
+///
+/// Handles raw identifiers (e.g., `r#type`) by stripping the `r#` prefix.
 pub fn to_pascal_case(ident: &syn::Ident) -> syn::Ident {
     let s = ident.to_string();
+    // Strip the raw identifier prefix if present
+    let s = s.strip_prefix("r#").unwrap_or(&s);
     let pascal: String = s
         .split('_')
         .map(|part| {
@@ -62,6 +66,13 @@ mod tests {
         let ident = syn::Ident::new("foo_bar_baz", proc_macro2::Span::call_site());
         let result = to_pascal_case(&ident);
         assert_eq!(result.to_string(), "FooBarBaz");
+    }
+
+    #[test]
+    fn test_to_pascal_case_raw_identifier() {
+        let ident = syn::Ident::new_raw("type", proc_macro2::Span::call_site());
+        let result = to_pascal_case(&ident);
+        assert_eq!(result.to_string(), "Type");
     }
 
     #[test]
