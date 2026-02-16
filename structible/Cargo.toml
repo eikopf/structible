@@ -1,7 +1,7 @@
 [package]
 name = "structible"
 edition = "2024"
-description = "Define structs backed by HashMap or BTreeMap with generated accessors"
+description = "A macro for defining virtual structs backed by maps"
 license.workspace = true
 repository.workspace = true
 version.workspace = true

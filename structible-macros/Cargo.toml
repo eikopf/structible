@@ -12,8 +12,6 @@ categories = ["rust-patterns", "development-tools::procedural-macro-helpers"]
 proc-macro = true
 
 [dependencies]
-# "full" is required for syn::Type variant matching, GenericArgument/PathArguments
-# for Option<T> extraction, and parse_nested_meta() for attribute parsing.
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
