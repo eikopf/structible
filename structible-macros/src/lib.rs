@@ -42,8 +42,9 @@ use quote::quote;
 use syn::{ItemStruct, parse_macro_input};
 
 use crate::codegen::{
-    generate_default_impl, generate_field_enum, generate_fields_impl, generate_fields_struct,
-    generate_impl, generate_struct, generate_value_enum,
+    generate_debug_impl, generate_default_impl, generate_field_enum, generate_fields_debug_impl,
+    generate_fields_impl, generate_fields_struct, generate_impl, generate_struct,
+    generate_value_enum,
 };
 use crate::parse::{StructibleConfig, parse_struct_fields};
 
@@ -109,7 +110,9 @@ pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
     let value_enum = generate_value_enum(name, &fields, generics);
     let fields_struct = generate_fields_struct(name, vis, &fields, &config, generics);
     let fields_impl = generate_fields_impl(name, &fields, &config, generics);
+    let fields_debug_impl = generate_fields_debug_impl(name, &fields, generics);
     let struct_def = generate_struct(name, vis, &config, attrs, generics);
+    let debug_impl = generate_debug_impl(name, &fields, generics);
     let impl_block = generate_impl(name, &fields, &config, generics);
     let default_impl = generate_default_impl(name, &fields, &config, generics);
 
@@ -118,7 +121,9 @@ pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
         #value_enum
         #fields_struct
         #fields_impl
+        #fields_debug_impl
         #struct_def
+        #debug_impl
         #impl_block
         #default_impl
     };
