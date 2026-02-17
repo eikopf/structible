@@ -31,6 +31,7 @@ assert_eq!(*person.age(), 31);
 |-----------|---------|-------------|
 | `backing` | `#[structible(backing = BTreeMap)]` | Map type (default: `HashMap`) |
 | `constructor` | `#[structible(constructor = create)]` | Constructor name (default: `new`) |
+| `with_len` | `#[structible(with_len)]` | Enable `len()` and `is_empty()` methods |
 
 ### Field Attributes
 
@@ -55,8 +56,13 @@ For each field, the macro generates:
 | Optional | Mutable getter | `fn name_mut(&mut self) -> Option<&mut T>` |
 | Optional | Setter | `fn set_name(&mut self, value: Option<T>)` |
 | Optional | Remover | `fn remove_name(&mut self) -> Option<T>` |
+| Optional | Take | `fn take_name(&mut self) -> Option<T>` |
 
 The constructor accepts all required fields: `fn new(name: String, age: u32) -> Self`
+
+With `#[structible(with_len)]`:
+- `fn len(&self) -> usize` — number of fields currently present
+- `fn is_empty(&self) -> bool` — true if no fields are present
 
 ## BTreeMap Backing
 
@@ -95,16 +101,28 @@ Generated methods: `add_{field}`, `{field}`, `{field}_mut`, `remove_{field}`, `{
 
 ## Ownership Extraction
 
-Extract owned values with `into_fields()` or individual `take_*` methods:
+Extract owned values using `into_fields()` which returns a companion struct with `take_*` methods:
 
 ```rust,ignore
 let person = Person::new("Alice".into(), 30);
-let PersonFields { name, age, .. } = person.into_fields();
+let mut fields = person.into_fields();
 
-// Or extract individual fields:
-let mut person = Person::new("Bob".into(), 25);
-let name = person.take_name();  // Consumes the field
+let name = fields.take_name().expect("required field");
+let age = fields.take_age().expect("required field");
+let email = fields.take_email(); // None if not set
 ```
+
+For optional fields, you can also use `take_*` directly on the struct without consuming it:
+
+```rust,ignore
+let mut person = Person::new("Bob".into(), 25);
+person.set_email(Some("bob@example.com".into()));
+
+let email = person.take_email(); // Some("bob@example.com")
+// person.email() is now None, but person is still valid
+```
+
+Note: `take_*` methods on the main struct are only available for optional fields to prevent leaving required fields in an invalid state.
 
 ## Custom BackingMap
 
