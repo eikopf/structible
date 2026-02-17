@@ -69,7 +69,7 @@ Into:
    - `len()` and `is_empty()` (opt-in via `with_len`)
 6. Generated methods on `PersonFields` companion struct:
    - `take_<field>()` for ALL fields (required and optional), all return `Option<T>`
-7. Derived traits: both structs derive `Clone, PartialEq` with custom `Debug` impls (showing only present fields)
+7. Derived traits: both structs derive `Clone, PartialEq` by default (opt-out via `no_clone`, `no_partial_eq`) with custom `Debug` impls (showing only present fields)
 8. `Default` impl (only if all non-unknown fields are optional)
 
 ### Attribute Syntax
@@ -79,6 +79,8 @@ Into:
 - `#[structible(backing = BTreeMap)]` - Explicit backing type
 - `#[structible(backing = HashMap, constructor = create)]` - Custom constructor name
 - `#[structible(with_len)]` - Enable `len()` and `is_empty()` methods
+- `#[structible(no_clone)]` - Do not derive `Clone` on generated types (allows non-Clone field types like `&mut T`)
+- `#[structible(no_partial_eq)]` - Do not derive `PartialEq` on generated types (allows non-PartialEq field types like `Box<dyn Fn()>`)
 
 **Field-level:**
 - `#[structible(get = custom_getter)]` - Custom getter name (replaces default `<field>`)

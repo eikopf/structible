@@ -128,9 +128,13 @@ mod tests {
 
     #[test]
     fn test_format_method_doc_with_field_docs() {
-        let field_docs = vec![" Field doc line 1".to_string(), " Field doc line 2".to_string()];
+        let field_docs = vec![
+            " Field doc line 1".to_string(),
+            " Field doc line 2".to_string(),
+        ];
         let result = format_method_doc("Auto doc.", &field_docs);
-        let expected_doc = "Auto doc.\n\n## Field Documentation\n Field doc line 1\n Field doc line 2";
+        let expected_doc =
+            "Auto doc.\n\n## Field Documentation\n Field doc line 1\n Field doc line 2";
         let expected = quote! { #[doc = #expected_doc] };
         assert_eq!(result.to_string(), expected.to_string());
     }
