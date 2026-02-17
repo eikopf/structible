@@ -63,7 +63,7 @@ Into:
    - Constructor (`new` or custom name via `constructor = name`) - takes required fields only
    - Getters: `<field>()` - returns `&T` for required, `Option<&T>` for optional
    - Mutable getters: `<field>_mut()` - returns `&mut T` for required, `Option<&mut T>` for optional
-   - Setters: `set_<field>(value)` - takes `T` for required, `Option<T>` for optional (None removes)
+   - Setters: `set_<field>(value)` - takes `T` (inner type for optional fields)
    - Removers: `remove_<field>()` - optional fields only, returns `Option<T>`
    - `take_<field>()` - optional fields only, removes and returns `Option<T>`
    - `into_fields()` - consumes struct, returns companion struct for extracting all fields
@@ -110,7 +110,7 @@ When a field has `#[structible(key = KeyType)]`, it becomes a catch-all for unkn
 
 - Optional fields (`Option<T>`) are stored without the `Option` wrapper; presence/absence in the map represents `Some`/`None`
 - Required field getters/mutable getters panic if the field is missing (invariant violation)
-- Optional field setters: `set_field(Some(v))` inserts, `set_field(None)` removes from the map
+- Setters for both required and optional fields take the value directly (`T`); use `remove_*` to clear optional fields
 - `take_*` methods on main struct are only for optional fields to prevent invalid state; use `into_fields()` to extract required field ownership
 - The `Fields` companion struct has `take_*` for ALL fields, returning `Option<T>` (required fields should always be `Some` if struct was valid)
 - `len()` and `is_empty()` are opt-in via `#[structible(with_len)]` to avoid conflicts with user-defined methods

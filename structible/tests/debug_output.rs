@@ -42,7 +42,7 @@ fn test_debug_shows_required_fields() {
 #[test]
 fn test_debug_shows_optional_fields_when_present() {
     let mut person = Person::new("Bob".to_string(), 25);
-    person.set_email(Some("bob@example.com".to_string()));
+    person.set_email("bob@example.com".to_string());
     let debug_str = format!("{:?}", person);
 
     assert!(debug_str.contains("name: \"Bob\""));
@@ -62,7 +62,7 @@ fn test_debug_empty_struct() {
 #[test]
 fn test_debug_partial_fields() {
     let mut partial = AllOptional::default();
-    partial.set_second(Some(42));
+    partial.set_second(42);
     let debug_str = format!("{:?}", partial);
 
     assert!(debug_str.starts_with("AllOptional {"));
@@ -96,7 +96,7 @@ fn test_debug_fields_struct() {
 #[test]
 fn test_debug_alternate_format() {
     let mut person = Person::new("Diana".to_string(), 28);
-    person.set_email(Some("diana@example.com".to_string()));
+    person.set_email("diana@example.com".to_string());
     let debug_str = format!("{:#?}", person);
 
     // Alternate format should be multi-line

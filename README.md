@@ -16,7 +16,7 @@ let mut person = Person::new("Alice".into(), 30);
 assert_eq!(person.name(), "Alice");
 assert_eq!(*person.age(), 30);
 
-person.set_email(Some("alice@example.com".into()));
+person.set_email("alice@example.com".into());
 assert_eq!(person.email(), Some(&"alice@example.com".into()));
 
 *person.age_mut() += 1;
@@ -54,7 +54,7 @@ For each field, the macro generates:
 | Required | Setter | `fn set_name(&mut self, value: T)` |
 | Optional | Getter | `fn name(&self) -> Option<&T>` |
 | Optional | Mutable getter | `fn name_mut(&mut self) -> Option<&mut T>` |
-| Optional | Setter | `fn set_name(&mut self, value: Option<T>)` |
+| Optional | Setter | `fn set_name(&mut self, value: T)` |
 | Optional | Remover | `fn remove_name(&mut self) -> Option<T>` |
 | Optional | Take | `fn take_name(&mut self) -> Option<T>` |
 
@@ -116,7 +116,7 @@ For optional fields, you can also use `take_*` directly on the struct without co
 
 ```rust,ignore
 let mut person = Person::new("Bob".into(), 25);
-person.set_email(Some("bob@example.com".into()));
+person.set_email("bob@example.com".into());
 
 let email = person.take_email(); // Some("bob@example.com")
 // person.email() is now None, but person is still valid
