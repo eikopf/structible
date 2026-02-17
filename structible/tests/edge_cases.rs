@@ -28,7 +28,7 @@ fn test_btreemap_backing() {
     assert_eq!(*obj.count(), 42);
     assert_eq!(obj.label(), None);
 
-    obj.set_label(Some("my label".into()));
+    obj.set_label("my label".into());
     assert_eq!(obj.label(), Some(&"my label".to_string()));
 }
 
@@ -70,7 +70,7 @@ fn test_array_field() {
     assert_eq!(*obj.data(), [1, 2, 3, 4]);
     assert_eq!(obj.optional_data(), None);
 
-    obj.set_optional_data(Some([10, 20, 30]));
+    obj.set_optional_data([10, 20, 30]);
     assert_eq!(obj.optional_data(), Some(&[10, 20, 30]));
 }
 
@@ -111,9 +111,9 @@ fn test_into_fields_all_none() {
 #[test]
 fn test_into_fields_all_some() {
     let mut obj = AllOptional::default();
-    obj.set_a(Some("hello".into()));
-    obj.set_b(Some(42));
-    obj.set_c(Some(true));
+    obj.set_a("hello".into());
+    obj.set_b(42);
+    obj.set_c(true);
 
     let mut fields = obj.into_fields();
     assert_eq!(fields.take_a(), Some("hello".into()));
@@ -124,7 +124,7 @@ fn test_into_fields_all_some() {
 #[test]
 fn test_into_fields_mixed() {
     let mut obj = AllOptional::default();
-    obj.set_b(Some(100));
+    obj.set_b(100);
 
     let mut fields = obj.into_fields();
     assert_eq!(fields.take_a(), None);
@@ -182,7 +182,7 @@ fn test_raw_identifiers() {
     assert_eq!(obj.r#type(), "keyword");
     assert_eq!(obj.r#match(), None);
 
-    obj.set_match(Some(42));
+    obj.set_match(42);
     assert_eq!(obj.r#match(), Some(&42));
 
     obj.set_type("updated".into());

@@ -53,7 +53,7 @@ fn test_custom_backing_type() {
     assert_eq!(*config.value(), 42);
     assert_eq!(config.description(), None);
 
-    config.set_description(Some("A test config".into()));
+    config.set_description("A test config".into());
     assert_eq!(config.description(), Some(&"A test config".to_string()));
 
     *config.value_mut() = 100;
@@ -66,7 +66,7 @@ fn test_custom_backing_type() {
 #[test]
 fn test_custom_backing_remove() {
     let mut config = Config::new("test".into(), 42);
-    config.set_description(Some("desc".into()));
+    config.set_description("desc".into());
 
     let removed = config.remove_description();
     assert_eq!(removed, Some("desc".to_string()));
