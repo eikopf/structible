@@ -3,7 +3,7 @@ use quote::{format_ident, quote};
 use syn::{Attribute, Generics, Ident, Visibility};
 
 use crate::parse::{FieldInfo, StructibleConfig};
-use crate::util::to_pascal_case;
+use crate::util::{extract_doc_comments, format_method_doc, to_pascal_case};
 
 /// Returns the hidden field enum name for a struct.
 pub fn field_enum_name(struct_name: &Ident) -> Ident {
@@ -164,9 +164,14 @@ pub fn generate_fields_impl(
             let variant = to_pascal_case(name);
             let inner_ty = &f.inner_ty;
             let vis = &f.vis;
+            let field_docs = extract_doc_comments(&f.attrs);
+
+            let name_str = name.to_string();
+            let auto_doc = format!("Removes and returns the `{}` field value if present.", name_str);
+            let doc_attr = format_method_doc(&auto_doc, &field_docs);
 
             quote! {
-                /// Removes and returns the field value if present.
+                #doc_attr
                 #vis fn #take_name(&mut self) -> Option<#inner_ty> {
                     match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
                         Some(#value_enum::#variant(v)) => Some(v),
@@ -206,14 +211,39 @@ fn generate_fields_unknown_methods(
     let value_type = &unknown_field.inner_ty;
     let vis = &unknown_field.vis;
     let map_type = config.backing.to_tokens();
+    let field_docs = extract_doc_comments(&unknown_field.attrs);
 
     let take_method = format_ident!("take_{}", name);
     let iter_method = format_ident!("{}_iter", name);
     let iter_mut_method = format_ident!("{}_iter_mut", name);
     let drain_method = format_ident!("drain_{}", name);
 
+    let name_str = name.to_string();
+    let take_doc = format_method_doc(
+        &format!(
+            "Removes and returns the `{}` value for the given key.",
+            name_str
+        ),
+        &field_docs,
+    );
+    let iter_doc = format_method_doc(
+        &format!("Returns an iterator over all `{}` fields.", name_str),
+        &field_docs,
+    );
+    let iter_mut_doc = format_method_doc(
+        &format!(
+            "Returns a mutable iterator over all `{}` fields.",
+            name_str
+        ),
+        &field_docs,
+    );
+    let drain_doc = format_method_doc(
+        &format!("Drains all `{}` fields into a new map.", name_str),
+        &field_docs,
+    );
+
     quote! {
-        /// Removes and returns the value for the given unknown key.
+        #take_doc
         #vis fn #take_method<__Q>(&mut self, key: &__Q) -> Option<#value_type>
         where
             #key_type: ::std::borrow::Borrow<__Q>,
@@ -226,7 +256,7 @@ fn generate_fields_unknown_methods(
             }
         }
 
-        /// Returns an iterator over all unknown fields.
+        #iter_doc
         #vis fn #iter_method(&self) -> impl Iterator<Item = (&#key_type, &#value_type)> {
             ::structible::IterableMap::iter(&self.inner).filter_map(|(k, v)| {
                 match (k, v) {
@@ -236,7 +266,7 @@ fn generate_fields_unknown_methods(
             })
         }
 
-        /// Returns a mutable iterator over all unknown fields.
+        #iter_mut_doc
         #vis fn #iter_mut_method(&mut self) -> impl Iterator<Item = (&#key_type, &mut #value_type)> {
             ::structible::IterableMap::iter_mut(&mut self.inner).filter_map(|(k, v)| {
                 match (k, v) {
@@ -246,7 +276,7 @@ fn generate_fields_unknown_methods(
             })
         }
 
-        /// Drains all unknown fields into a new map.
+        #drain_doc
         #vis fn #drain_method(&mut self) -> #map_type<#key_type, #value_type> {
             let keys: ::std::vec::Vec<#key_type> = ::structible::IterableMap::iter(&self.inner)
                 .filter_map(|(k, _)| {
@@ -594,13 +624,15 @@ fn generate_getters(
             let variant = to_pascal_case(name);
 
             let vis = &f.vis;
+            let field_docs = extract_doc_comments(&f.attrs);
 
             let name_str = name.to_string();
             if f.is_optional {
                 let inner_ty = &f.inner_ty;
-                let doc = format!("Returns the `{}` value if present.", name_str);
+                let auto_doc = format!("Returns the `{}` value if present.", name_str);
+                let doc_attr = format_method_doc(&auto_doc, &field_docs);
                 quote! {
-                    #[doc = #doc]
+                    #doc_attr
                     #vis fn #getter_name(&self) -> Option<&#inner_ty> {
                         match ::structible::BackingMap::get(&self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => Some(v),
@@ -610,9 +642,10 @@ fn generate_getters(
                 }
             } else {
                 let ty = &f.ty;
-                let doc = format!("Returns a reference to the `{}` value.", name_str);
+                let auto_doc = format!("Returns a reference to the `{}` value.", name_str);
+                let doc_attr = format_method_doc(&auto_doc, &field_docs);
                 quote! {
-                    #[doc = #doc]
+                    #doc_attr
                     #vis fn #getter_name(&self) -> &#ty {
                         match ::structible::BackingMap::get(&self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => v,
@@ -645,13 +678,18 @@ fn generate_getters_mut(
                 .unwrap_or_else(|| format_ident!("{}_mut", name));
             let variant = to_pascal_case(name);
             let vis = &f.vis;
+            let field_docs = extract_doc_comments(&f.attrs);
 
             let name_str = name.to_string();
             if f.is_optional {
                 let inner_ty = &f.inner_ty;
-                let doc = format!("Returns a mutable reference to the `{}` value if present.", name_str);
+                let auto_doc = format!(
+                    "Returns a mutable reference to the `{}` value if present.",
+                    name_str
+                );
+                let doc_attr = format_method_doc(&auto_doc, &field_docs);
                 quote! {
-                    #[doc = #doc]
+                    #doc_attr
                     #vis fn #getter_mut_name(&mut self) -> Option<&mut #inner_ty> {
                         match ::structible::BackingMap::get_mut(&mut self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => Some(v),
@@ -661,9 +699,10 @@ fn generate_getters_mut(
                 }
             } else {
                 let ty = &f.ty;
-                let doc = format!("Returns a mutable reference to the `{}` value.", name_str);
+                let auto_doc = format!("Returns a mutable reference to the `{}` value.", name_str);
+                let doc_attr = format_method_doc(&auto_doc, &field_docs);
                 quote! {
-                    #[doc = #doc]
+                    #doc_attr
                     #vis fn #getter_mut_name(&mut self) -> &mut #ty {
                         match ::structible::BackingMap::get_mut(&mut self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => v,
@@ -696,13 +735,15 @@ fn generate_setters(
                 .unwrap_or_else(|| format_ident!("set_{}", name));
             let variant = to_pascal_case(name);
             let vis = &f.vis;
+            let field_docs = extract_doc_comments(&f.attrs);
 
             let name_str = name.to_string();
-            let doc = format!("Sets the `{}` value.", name_str);
+            let auto_doc = format!("Sets the `{}` value.", name_str);
+            let doc_attr = format_method_doc(&auto_doc, &field_docs);
             // Use inner_ty for optional fields, ty for required fields
             let value_ty = if f.is_optional { &f.inner_ty } else { &f.ty };
             quote! {
-                #[doc = #doc]
+                #doc_attr
                 #vis fn #setter_name(&mut self, value: #value_ty) {
                     ::structible::BackingMap::insert(&mut self.inner, #field_enum::#variant, #value_enum::#variant(value));
                 }
@@ -727,6 +768,7 @@ fn generate_unknown_field_methods(
     let key_type = unknown_field.unknown_key_type().unwrap();
     let value_type = &unknown_field.inner_ty;
     let vis = &unknown_field.vis;
+    let field_docs = extract_doc_comments(&unknown_field.attrs);
 
     // Method names derived from field name
     let insert_method = format_ident!("insert_{}", name);
@@ -736,9 +778,49 @@ fn generate_unknown_field_methods(
     let iter_method = format_ident!("{}_iter", name);
     let iter_mut_method = format_ident!("{}_iter_mut", name);
 
+    let name_str = name.to_string();
+    let insert_doc = format_method_doc(
+        &format!(
+            "Inserts an unknown `{}` field with the given key and value. Returns the previous value if the key was already present.",
+            name_str
+        ),
+        &field_docs,
+    );
+    let get_doc = format_method_doc(
+        &format!(
+            "Returns a reference to the `{}` value for the given key.",
+            name_str
+        ),
+        &field_docs,
+    );
+    let get_mut_doc = format_method_doc(
+        &format!(
+            "Returns a mutable reference to the `{}` value for the given key.",
+            name_str
+        ),
+        &field_docs,
+    );
+    let remove_doc = format_method_doc(
+        &format!(
+            "Removes the `{}` field for the given key and returns the value if present.",
+            name_str
+        ),
+        &field_docs,
+    );
+    let iter_doc = format_method_doc(
+        &format!("Returns an iterator over all `{}` fields.", name_str),
+        &field_docs,
+    );
+    let iter_mut_doc = format_method_doc(
+        &format!(
+            "Returns a mutable iterator over all `{}` fields.",
+            name_str
+        ),
+        &field_docs,
+    );
+
     quote! {
-        /// Inserts an unknown field with the given key and value.
-        /// Returns the previous value if the key was already present.
+        #insert_doc
         #vis fn #insert_method(&mut self, key: #key_type, value: #value_type) -> Option<#value_type> {
             match ::structible::BackingMap::insert(
                 &mut self.inner,
@@ -750,7 +832,7 @@ fn generate_unknown_field_methods(
             }
         }
 
-        /// Returns a reference to the value for the given unknown key.
+        #get_doc
         #vis fn #get_method<__Q>(&self, key: &__Q) -> Option<&#value_type>
         where
             #key_type: ::std::borrow::Borrow<__Q>,
@@ -770,7 +852,7 @@ fn generate_unknown_field_methods(
             None
         }
 
-        /// Returns a mutable reference to the value for the given unknown key.
+        #get_mut_doc
         #vis fn #get_mut_method<__Q>(&mut self, key: &__Q) -> Option<&mut #value_type>
         where
             #key_type: ::std::borrow::Borrow<__Q>,
@@ -788,7 +870,7 @@ fn generate_unknown_field_methods(
             None
         }
 
-        /// Removes an unknown field and returns the value if present.
+        #remove_doc
         #vis fn #remove_method<__Q>(&mut self, key: &__Q) -> Option<#value_type>
         where
             #key_type: ::std::borrow::Borrow<__Q>,
@@ -801,7 +883,7 @@ fn generate_unknown_field_methods(
             }
         }
 
-        /// Returns an iterator over all unknown fields.
+        #iter_doc
         #vis fn #iter_method(&self) -> impl Iterator<Item = (&#key_type, &#value_type)> {
             ::structible::IterableMap::iter(&self.inner).filter_map(|(k, v)| {
                 match (k, v) {
@@ -811,7 +893,7 @@ fn generate_unknown_field_methods(
             })
         }
 
-        /// Returns a mutable iterator over all unknown fields.
+        #iter_mut_doc
         #vis fn #iter_mut_method(&mut self) -> impl Iterator<Item = (&#key_type, &mut #value_type)> {
             ::structible::IterableMap::iter_mut(&mut self.inner).filter_map(|(k, v)| {
                 match (k, v) {
@@ -845,9 +927,17 @@ fn generate_removers(
             let variant = to_pascal_case(name);
             let inner_ty = &f.inner_ty;
             let vis = &f.vis;
+            let field_docs = extract_doc_comments(&f.attrs);
+
+            let name_str = name.to_string();
+            let auto_doc = format!(
+                "Removes the `{}` field and returns the value if it was present.",
+                name_str
+            );
+            let doc_attr = format_method_doc(&auto_doc, &field_docs);
 
             quote! {
-                /// Removes the field and returns the value if it was present.
+                #doc_attr
                 #vis fn #remover_name(&mut self) -> Option<#inner_ty> {
                     match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
                         Some(#value_enum::#variant(v)) => Some(v),
