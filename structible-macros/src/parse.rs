@@ -41,6 +41,10 @@ pub struct StructibleConfig {
     pub constructor: Option<Ident>,
     /// If true, generate `len()` and `is_empty()` methods.
     pub with_len: bool,
+    /// If true, do not derive `Clone` on generated types.
+    pub no_clone: bool,
+    /// If true, do not derive `PartialEq` on generated types.
+    pub no_partial_eq: bool,
 }
 
 /// Configuration parsed from `#[structible(...)]` attribute on a field.
@@ -62,16 +66,20 @@ impl Parse for StructibleConfig {
                 backing: BackingType::default(),
                 constructor: None,
                 with_len: false,
+                no_clone: false,
+                no_partial_eq: false,
             });
         }
 
         // Try to parse as a shorthand (just a type, not key = value or flag)
         // We detect this by checking if it looks like `backing = ...` or `constructor = ...`
-        // or a known flag like `with_len`
+        // or a known flag like `with_len`, `no_clone`, `no_partial_eq`
         let fork = input.fork();
         if let Ok(first_ident) = fork.parse::<Ident>() {
             let is_key_value = fork.peek(Token![=]);
-            let is_flag = first_ident == "with_len";
+            let is_flag = first_ident == "with_len"
+                || first_ident == "no_clone"
+                || first_ident == "no_partial_eq";
             let has_more = fork.peek(Token![,]);
             if !is_key_value && !is_flag && !has_more {
                 // This is a shorthand type specification
@@ -82,6 +90,8 @@ impl Parse for StructibleConfig {
                     backing,
                     constructor: None,
                     with_len: false,
+                    no_clone: false,
+                    no_partial_eq: false,
                 });
             }
         }
@@ -90,6 +100,8 @@ impl Parse for StructibleConfig {
         let mut backing = None;
         let mut constructor = None;
         let mut with_len = false;
+        let mut no_clone = false;
+        let mut no_partial_eq = false;
 
         while !input.is_empty() {
             let key: Ident = input.parse()?;
@@ -120,6 +132,12 @@ impl Parse for StructibleConfig {
                 "with_len" => {
                     with_len = true;
                 }
+                "no_clone" => {
+                    no_clone = true;
+                }
+                "no_partial_eq" => {
+                    no_partial_eq = true;
+                }
                 other => {
                     return Err(syn::Error::new(
                         key.span(),
@@ -141,6 +159,8 @@ impl Parse for StructibleConfig {
             backing,
             constructor,
             with_len,
+            no_clone,
+            no_partial_eq,
         })
     }
 }

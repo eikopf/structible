@@ -70,6 +70,7 @@ pub fn generate_field_enum(struct_name: &Ident, fields: &[FieldInfo]) -> TokenSt
 pub fn generate_value_enum(
     struct_name: &Ident,
     fields: &[FieldInfo],
+    config: &StructibleConfig,
     generics: &Generics,
 ) -> TokenStream {
     let enum_name = value_enum_name(struct_name);
@@ -95,10 +96,22 @@ pub fn generate_value_enum(
         variants.push(quote! { Unknown(#value_ty) });
     }
 
+    // Build derive list based on config
+    let clone_derive = if config.no_clone {
+        quote! {}
+    } else {
+        quote! { Clone, }
+    };
+    let partial_eq_derive = if config.no_partial_eq {
+        quote! {}
+    } else {
+        quote! { PartialEq }
+    };
+
     quote! {
         #[doc(hidden)]
         #[allow(non_camel_case_types, clippy::enum_variant_names)]
-        #[derive(Debug, Clone, PartialEq)]
+        #[derive(Debug, #clone_derive #partial_eq_derive)]
         pub enum #enum_name #impl_generics #where_clause {
             #(#variants),*
         }
@@ -123,6 +136,14 @@ pub fn generate_fields_struct(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let map_type = config.backing.to_tokens();
 
+    // Build derive list based on config
+    let derives = match (config.no_clone, config.no_partial_eq) {
+        (true, true) => quote! {},
+        (true, false) => quote! { #[derive(PartialEq)] },
+        (false, true) => quote! { #[derive(Clone)] },
+        (false, false) => quote! { #[derive(Clone, PartialEq)] },
+    };
+
     quote! {
         /// Companion struct for extracting owned values from fields.
         ///
@@ -132,7 +153,7 @@ pub fn generate_fields_struct(
         /// struct was valid).
         ///
         /// This is a "reverse builder" pattern - fields can only be extracted, not inserted.
-        #[derive(Clone, PartialEq)]
+        #derives
         #vis struct #fields_struct #impl_generics #where_clause {
             inner: #map_type<#field_enum, #value_enum #ty_generics>,
         }
@@ -231,10 +252,7 @@ fn generate_fields_unknown_methods(
         &field_docs,
     );
     let iter_mut_doc = format_method_doc(
-        &format!(
-            "Returns a mutable iterator over all `{}` fields.",
-            name_str
-        ),
+        &format!("Returns a mutable iterator over all `{}` fields.", name_str),
         &field_docs,
     );
     let drain_doc = format_method_doc(
@@ -312,8 +330,16 @@ pub fn generate_struct(
     let map_type = config.backing.to_tokens();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
+    // Build derive list based on config
+    let derives = match (config.no_clone, config.no_partial_eq) {
+        (true, true) => quote! {},
+        (true, false) => quote! { #[derive(PartialEq)] },
+        (false, true) => quote! { #[derive(Clone)] },
+        (false, false) => quote! { #[derive(Clone, PartialEq)] },
+    };
+
     quote! {
-        #[derive(Clone, PartialEq)]
+        #derives
         #(#attrs)*
         #vis struct #struct_name #impl_generics #where_clause {
             inner: #map_type<#field_enum, #value_enum #ty_generics>,
@@ -812,10 +838,7 @@ fn generate_unknown_field_methods(
         &field_docs,
     );
     let iter_mut_doc = format_method_doc(
-        &format!(
-            "Returns a mutable iterator over all `{}` fields.",
-            name_str
-        ),
+        &format!("Returns a mutable iterator over all `{}` fields.", name_str),
         &field_docs,
     );
 

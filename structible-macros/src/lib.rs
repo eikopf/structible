@@ -107,7 +107,7 @@ pub fn structible(attr: TokenStream, item: TokenStream) -> TokenStream {
     let generics = &input.generics;
 
     let field_enum = generate_field_enum(name, &fields);
-    let value_enum = generate_value_enum(name, &fields, generics);
+    let value_enum = generate_value_enum(name, &fields, &config, generics);
     let fields_struct = generate_fields_struct(name, vis, &fields, &config, generics);
     let fields_impl = generate_fields_impl(name, &fields, &config, generics);
     let fields_debug_impl = generate_fields_debug_impl(name, &fields, generics);
