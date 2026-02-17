@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- `Debug` implementations now show fields like normal structs instead of exposing internal map structure
+- Only present fields are shown in `Debug` output (sparse representation)
+- Extended documentation generation to cover all generated methods (getters, mutable getters, setters)
+- Updated README to document `with_len`, `take_*` methods, and ownership extraction
+
 ## [0.2.0] - 2026-02-16
 
 ### Changed
