@@ -28,8 +28,8 @@
 //! This means:
 //!
 //! - Getters return `Option<&T>` (present = `Some`, absent = `None`)
-//! - Setters accept `Option<T>` (`Some` inserts, `None` removes)
-//! - Removers extract the value if present
+//! - Setters accept `T` (the inner type) and insert the value
+//! - Removers extract the value if present; use `remove_*` to clear a field
 
 extern crate proc_macro;
 
@@ -76,9 +76,8 @@ use crate::parse::{StructibleConfig, parse_struct_fields};
 /// Presence in the map represents `Some`, absence represents `None`:
 ///
 /// - `email()` returns `Option<&String>`
-/// - `set_email(Some(v))` inserts the value
-/// - `set_email(None)` removes the value
-/// - `remove_email()` extracts and returns the value if present
+/// - `set_email(v)` inserts the value
+/// - `remove_email()` removes and returns the value if present
 ///
 /// # Required Fields
 ///

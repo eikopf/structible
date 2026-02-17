@@ -40,7 +40,7 @@ This is a Rust workspace containing a proc-macro crate for generating map-backed
   - `lib.rs` - Entry point; orchestrates parsing and code generation
   - `parse.rs` - Parses struct and field attributes into `StructibleConfig`, `FieldConfig`, and `FieldInfo`
   - `codegen.rs` - Generates the field enum, value enum, fields struct, struct definition, impl block, and Default impl
-  - `util.rs` - Helper functions: `extract_option_inner` for unwrapping `Option<T>`, `to_pascal_case` for enum variant names (handles raw identifiers like `r#type`)
+  - `util.rs` - Helper functions: `extract_option_inner` for unwrapping `Option<T>`, `to_pascal_case` for enum variant names (handles raw identifiers like `r#type`), `extract_doc_comments` for extracting doc strings from attributes, `format_method_doc` for appending field docs to generated method docs
 
 ### Code Generation
 
