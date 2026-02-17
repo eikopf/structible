@@ -132,7 +132,7 @@ pub fn generate_fields_struct(
         /// struct was valid).
         ///
         /// This is a "reverse builder" pattern - fields can only be extracted, not inserted.
-        #[derive(Debug, Clone, PartialEq)]
+        #[derive(Clone, PartialEq)]
         #vis struct #fields_struct #impl_generics #where_clause {
             inner: #map_type<#field_enum, #value_enum #ty_generics>,
         }
@@ -272,10 +272,163 @@ pub fn generate_struct(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote! {
-        #[derive(Debug, Clone, PartialEq)]
+        #[derive(Clone, PartialEq)]
         #(#attrs)*
         #vis struct #struct_name #impl_generics #where_clause {
             inner: #map_type<#field_enum, #value_enum #ty_generics>,
+        }
+    }
+}
+
+/// Generate a custom Debug impl that shows fields like a normal struct.
+///
+/// Only shows fields that are currently present in the backing map.
+pub fn generate_debug_impl(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    generics: &Generics,
+) -> TokenStream {
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
+    let struct_name_str = struct_name.to_string();
+
+    // Add Debug bounds to all type parameters
+    let type_params: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    // Build additional Debug bounds for type parameters
+    let debug_bounds = if type_params.is_empty() {
+        quote! {}
+    } else {
+        quote! { #(#type_params: ::std::fmt::Debug,)* }
+    };
+
+    // Combine existing where clause with Debug bounds
+    let combined_where = if let Some(wc) = where_clause {
+        // Existing where clause - extract predicates and add Debug bounds
+        let existing_predicates = &wc.predicates;
+        quote! { where #debug_bounds #existing_predicates }
+    } else if !type_params.is_empty() {
+        quote! { where #debug_bounds }
+    } else {
+        quote! {}
+    };
+
+    // Generate field debug entries for known fields
+    let field_entries: Vec<_> = fields
+        .iter()
+        .filter(|f| !f.is_unknown_field())
+        .map(|f| {
+            let name = &f.name;
+            let name_str = name.to_string();
+            let variant = to_pascal_case(name);
+            quote! {
+                if let Some(#value_enum::#variant(v)) = ::structible::BackingMap::get(&self.inner, &#field_enum::#variant) {
+                    debug_struct.field(#name_str, v);
+                }
+            }
+        })
+        .collect();
+
+    // Handle unknown fields if present
+    let unknown_field = fields.iter().find(|f| f.is_unknown_field());
+    let unknown_entries = if unknown_field.is_some() {
+        quote! {
+            for (k, v) in ::structible::IterableMap::iter(&self.inner) {
+                if let (#field_enum::Unknown(key), #value_enum::Unknown(value)) = (k, v) {
+                    debug_struct.field(&format!("{:?}", key), value);
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    quote! {
+        impl #impl_generics ::std::fmt::Debug for #struct_name #ty_generics #combined_where {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug_struct = f.debug_struct(#struct_name_str);
+                #(#field_entries)*
+                #unknown_entries
+                debug_struct.finish()
+            }
+        }
+    }
+}
+
+/// Generate a custom Debug impl for the Fields struct.
+///
+/// Only shows fields that are currently present in the backing map.
+pub fn generate_fields_debug_impl(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    generics: &Generics,
+) -> TokenStream {
+    let fields_struct = fields_struct_name(struct_name);
+    let field_enum = field_enum_name(struct_name);
+    let value_enum = value_enum_name(struct_name);
+    let struct_name_str = fields_struct.to_string();
+
+    // Add Debug bounds to all type parameters
+    let type_params: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    // Build additional Debug bounds for type parameters
+    let debug_bounds = if type_params.is_empty() {
+        quote! {}
+    } else {
+        quote! { #(#type_params: ::std::fmt::Debug,)* }
+    };
+
+    // Combine existing where clause with Debug bounds
+    let combined_where = if let Some(wc) = where_clause {
+        // Existing where clause - extract predicates and add Debug bounds
+        let existing_predicates = &wc.predicates;
+        quote! { where #debug_bounds #existing_predicates }
+    } else if !type_params.is_empty() {
+        quote! { where #debug_bounds }
+    } else {
+        quote! {}
+    };
+
+    // Generate field debug entries for known fields
+    let field_entries: Vec<_> = fields
+        .iter()
+        .filter(|f| !f.is_unknown_field())
+        .map(|f| {
+            let name = &f.name;
+            let name_str = name.to_string();
+            let variant = to_pascal_case(name);
+            quote! {
+                if let Some(#value_enum::#variant(v)) = ::structible::BackingMap::get(&self.inner, &#field_enum::#variant) {
+                    debug_struct.field(#name_str, v);
+                }
+            }
+        })
+        .collect();
+
+    // Handle unknown fields if present
+    let unknown_field = fields.iter().find(|f| f.is_unknown_field());
+    let unknown_entries = if unknown_field.is_some() {
+        quote! {
+            for (k, v) in ::structible::IterableMap::iter(&self.inner) {
+                if let (#field_enum::Unknown(key), #value_enum::Unknown(value)) = (k, v) {
+                    debug_struct.field(&format!("{:?}", key), value);
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    quote! {
+        impl #impl_generics ::std::fmt::Debug for #fields_struct #ty_generics #combined_where {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug_struct = f.debug_struct(#struct_name_str);
+                #(#field_entries)*
+                #unknown_entries
+                debug_struct.finish()
+            }
         }
     }
 }
