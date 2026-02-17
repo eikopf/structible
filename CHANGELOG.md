@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-17
+
 ### Changed
 
 - `Debug` implementations now show fields like normal structs instead of exposing internal map structure
