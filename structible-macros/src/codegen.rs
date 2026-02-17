@@ -209,6 +209,7 @@ fn generate_fields_unknown_methods(
 
     let take_method = format_ident!("take_{}", name);
     let iter_method = format_ident!("{}_iter", name);
+    let iter_mut_method = format_ident!("{}_iter_mut", name);
     let drain_method = format_ident!("drain_{}", name);
 
     quote! {
@@ -228,6 +229,16 @@ fn generate_fields_unknown_methods(
         /// Returns an iterator over all unknown fields.
         #vis fn #iter_method(&self) -> impl Iterator<Item = (&#key_type, &#value_type)> {
             ::structible::IterableMap::iter(&self.inner).filter_map(|(k, v)| {
+                match (k, v) {
+                    (#field_enum::Unknown(key), #value_enum::Unknown(value)) => Some((key, value)),
+                    _ => None,
+                }
+            })
+        }
+
+        /// Returns a mutable iterator over all unknown fields.
+        #vis fn #iter_mut_method(&mut self) -> impl Iterator<Item = (&#key_type, &mut #value_type)> {
+            ::structible::IterableMap::iter_mut(&mut self.inner).filter_map(|(k, v)| {
                 match (k, v) {
                     (#field_enum::Unknown(key), #value_enum::Unknown(value)) => Some((key, value)),
                     _ => None,
@@ -723,6 +734,7 @@ fn generate_unknown_field_methods(
     let get_mut_method = format_ident!("{}_mut", name);
     let remove_method = format_ident!("remove_{}", name);
     let iter_method = format_ident!("{}_iter", name);
+    let iter_mut_method = format_ident!("{}_iter_mut", name);
 
     quote! {
         /// Inserts an unknown field with the given key and value.
@@ -792,6 +804,16 @@ fn generate_unknown_field_methods(
         /// Returns an iterator over all unknown fields.
         #vis fn #iter_method(&self) -> impl Iterator<Item = (&#key_type, &#value_type)> {
             ::structible::IterableMap::iter(&self.inner).filter_map(|(k, v)| {
+                match (k, v) {
+                    (#field_enum::Unknown(key), #value_enum::Unknown(value)) => Some((key, value)),
+                    _ => None,
+                }
+            })
+        }
+
+        /// Returns a mutable iterator over all unknown fields.
+        #vis fn #iter_mut_method(&mut self) -> impl Iterator<Item = (&#key_type, &mut #value_type)> {
+            ::structible::IterableMap::iter_mut(&mut self.inner).filter_map(|(k, v)| {
                 match (k, v) {
                     (#field_enum::Unknown(key), #value_enum::Unknown(value)) => Some((key, value)),
                     _ => None,

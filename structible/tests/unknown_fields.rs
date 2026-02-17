@@ -131,6 +131,22 @@ fn test_iterate_unknown_fields() {
 }
 
 #[test]
+fn test_iterate_mut_unknown_fields() {
+    let mut person = Person::new("Alice".into(), 30);
+    person.insert_extra("a".into(), "1".into());
+    person.insert_extra("b".into(), "2".into());
+
+    // Mutate all values via iter_mut
+    for (_key, value) in person.extra_iter_mut() {
+        *value = format!("modified_{}", value);
+    }
+
+    // Verify mutations
+    assert_eq!(person.extra("a"), Some(&"modified_1".to_string()));
+    assert_eq!(person.extra("b"), Some(&"modified_2".to_string()));
+}
+
+#[test]
 fn test_into_fields_with_unknown() {
     let mut person = Person::new("Alice".into(), 30);
     person.insert_extra("color".into(), "blue".into());
@@ -152,6 +168,24 @@ fn test_into_fields_with_unknown() {
 
     // After taking, they're gone
     assert_eq!(fields.take_extra("color"), None);
+}
+
+#[test]
+fn test_into_fields_iter_mut_unknown() {
+    let mut person = Person::new("Bob".into(), 25);
+    person.insert_extra("key1".into(), "val1".into());
+    person.insert_extra("key2".into(), "val2".into());
+
+    let mut fields = person.into_fields();
+
+    // Mutate all unknown fields via iter_mut
+    for (_key, value) in fields.extra_iter_mut() {
+        *value = format!("updated_{}", value);
+    }
+
+    // Verify mutations
+    assert_eq!(fields.take_extra("key1"), Some("updated_val1".to_string()));
+    assert_eq!(fields.take_extra("key2"), Some("updated_val2".to_string()));
 }
 
 #[test]
