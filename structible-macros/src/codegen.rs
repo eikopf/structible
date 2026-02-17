@@ -718,7 +718,7 @@ fn generate_unknown_field_methods(
     let vis = &unknown_field.vis;
 
     // Method names derived from field name
-    let add_method = format_ident!("add_{}", name);
+    let insert_method = format_ident!("insert_{}", name);
     let get_method = name.clone();
     let get_mut_method = format_ident!("{}_mut", name);
     let remove_method = format_ident!("remove_{}", name);
@@ -727,7 +727,7 @@ fn generate_unknown_field_methods(
     quote! {
         /// Inserts an unknown field with the given key and value.
         /// Returns the previous value if the key was already present.
-        #vis fn #add_method(&mut self, key: #key_type, value: #value_type) -> Option<#value_type> {
+        #vis fn #insert_method(&mut self, key: #key_type, value: #value_type) -> Option<#value_type> {
             match ::structible::BackingMap::insert(
                 &mut self.inner,
                 #field_enum::Unknown(key),

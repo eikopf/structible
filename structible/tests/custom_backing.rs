@@ -110,8 +110,8 @@ fn test_custom_backing_with_unknown_fields() {
     assert_eq!(config.name(), "test");
 
     // Add unknown fields
-    config.add_extra("color".into(), "blue".into());
-    config.add_extra("size".into(), "large".into());
+    config.insert_extra("color".into(), "blue".into());
+    config.insert_extra("size".into(), "large".into());
 
     // Look up by borrowed key
     assert_eq!(config.extra("color"), Some(&"blue".to_string()));

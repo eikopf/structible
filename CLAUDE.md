@@ -94,7 +94,7 @@ When a field has `#[structible(key = KeyType)]`, it becomes a catch-all for unkn
 - At most one unknown field per struct
 
 **Generated methods on main struct:**
-- `add_<field>(key, value)` - Insert unknown field, returns previous value if present
+- `insert_<field>(key, value)` - Insert unknown field, returns previous value if present
 - `<field>(&key)` - Get by borrowed key (supports `Borrow` trait)
 - `<field>_mut(&key)` - Mutable access by borrowed key
 - `remove_<field>(&key)` - Remove and return value

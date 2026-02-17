@@ -143,8 +143,8 @@ pub struct BTreeMapWithUnknown {
 #[test]
 fn test_btreemap_with_unknown() {
     let mut obj = BTreeMapWithUnknown::new("test".into());
-    obj.add_extra("key1".into(), "value1".into());
-    obj.add_extra("key2".into(), "value2".into());
+    obj.insert_extra("key1".into(), "value1".into());
+    obj.insert_extra("key2".into(), "value2".into());
 
     // BTreeMap iteration should be ordered
     let entries: Vec<_> = obj.extra_iter().collect();
