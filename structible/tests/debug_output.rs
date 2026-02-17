@@ -74,7 +74,7 @@ fn test_debug_partial_fields() {
 #[test]
 fn test_debug_with_unknown_fields() {
     let mut item = WithUnknown::new("test".to_string());
-    item.add_extra("custom_key".to_string(), "custom_value".to_string());
+    item.insert_extra("custom_key".to_string(), "custom_value".to_string());
     let debug_str = format!("{:?}", item);
 
     assert!(debug_str.contains("name: \"test\""));

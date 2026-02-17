@@ -24,8 +24,8 @@ struct Location<V> {
 fn basic_usage() {
     let mut location = Location::<bool>::new("Sydney".into());
     location.set_links(HashMap::new());
-    location.add_vendor_property("example.com:foo".into(), true);
-    location.add_vendor_property("example.com:bar".into(), false);
+    location.insert_vendor_property("example.com:foo".into(), true);
+    location.insert_vendor_property("example.com:bar".into(), false);
 
     assert_eq!(location.len(), 4);
     assert_eq!(location.vendor_property("example.com:foo"), Some(&true));

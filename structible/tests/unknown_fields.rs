@@ -16,21 +16,21 @@ fn test_basic_fields() {
 }
 
 #[test]
-fn test_add_unknown_field() {
+fn test_insert_unknown_field() {
     let mut person = Person::new("Alice".into(), 30);
 
     // Add an unknown field
-    let prev = person.add_extra("favorite_color".into(), "blue".into());
+    let prev = person.insert_extra("favorite_color".into(), "blue".into());
     assert!(prev.is_none());
 
     // Add another
-    person.add_extra("city".into(), "NYC".into());
+    person.insert_extra("city".into(), "NYC".into());
 }
 
 #[test]
 fn test_get_unknown_field() {
     let mut person = Person::new("Alice".into(), 30);
-    person.add_extra("favorite_color".into(), "blue".into());
+    person.insert_extra("favorite_color".into(), "blue".into());
 
     // Get by borrowed key
     let color = person.extra("favorite_color");
@@ -44,7 +44,7 @@ fn test_get_unknown_field() {
 #[test]
 fn test_get_mut_unknown_field() {
     let mut person = Person::new("Alice".into(), 30);
-    person.add_extra("score".into(), "100".into());
+    person.insert_extra("score".into(), "100".into());
 
     // Mutate via get_mut
     if let Some(score) = person.extra_mut("score") {
@@ -57,7 +57,7 @@ fn test_get_mut_unknown_field() {
 #[test]
 fn test_remove_unknown_field() {
     let mut person = Person::new("Alice".into(), 30);
-    person.add_extra("temp".into(), "value".into());
+    person.insert_extra("temp".into(), "value".into());
 
     let removed = person.remove_extra("temp");
     assert_eq!(removed, Some("value".to_string()));
@@ -69,8 +69,8 @@ fn test_remove_unknown_field() {
 #[test]
 fn test_remove_with_borrowed_str() {
     let mut person = Person::new("Alice".into(), 30);
-    person.add_extra("key1".into(), "value1".into());
-    person.add_extra("key2".into(), "value2".into());
+    person.insert_extra("key1".into(), "value1".into());
+    person.insert_extra("key2".into(), "value2".into());
 
     // Remove using &str directly (the ergonomic API)
     let removed = person.remove_extra("key1");
@@ -85,7 +85,7 @@ fn test_remove_with_borrowed_str() {
 #[test]
 fn test_remove_with_owned_string_ref() {
     let mut person = Person::new("Alice".into(), 30);
-    person.add_extra("mykey".into(), "myvalue".into());
+    person.insert_extra("mykey".into(), "myvalue".into());
 
     // Remove using &String (backwards compatibility)
     let key = String::from("mykey");
@@ -96,7 +96,7 @@ fn test_remove_with_owned_string_ref() {
 #[test]
 fn test_remove_nonexistent_key() {
     let mut person = Person::new("Alice".into(), 30);
-    person.add_extra("exists".into(), "value".into());
+    person.insert_extra("exists".into(), "value".into());
 
     // Removing a key that doesn't exist returns None
     let removed = person.remove_extra("does_not_exist");
@@ -109,7 +109,7 @@ fn test_remove_nonexistent_key() {
 #[test]
 fn test_remove_same_key_twice() {
     let mut person = Person::new("Alice".into(), 30);
-    person.add_extra("once".into(), "only".into());
+    person.insert_extra("once".into(), "only".into());
 
     // First removal succeeds
     let first = person.remove_extra("once");
@@ -123,8 +123,8 @@ fn test_remove_same_key_twice() {
 #[test]
 fn test_iterate_unknown_fields() {
     let mut person = Person::new("Alice".into(), 30);
-    person.add_extra("a".into(), "1".into());
-    person.add_extra("b".into(), "2".into());
+    person.insert_extra("a".into(), "1".into());
+    person.insert_extra("b".into(), "2".into());
 
     let entries: Vec<_> = person.extra_iter().collect();
     assert_eq!(entries.len(), 2);
@@ -133,8 +133,8 @@ fn test_iterate_unknown_fields() {
 #[test]
 fn test_into_fields_with_unknown() {
     let mut person = Person::new("Alice".into(), 30);
-    person.add_extra("color".into(), "blue".into());
-    person.add_extra("size".into(), "medium".into());
+    person.insert_extra("color".into(), "blue".into());
+    person.insert_extra("size".into(), "medium".into());
 
     let mut fields = person.into_fields();
 
@@ -157,8 +157,8 @@ fn test_into_fields_with_unknown() {
 #[test]
 fn test_into_fields_drain_unknown() {
     let mut person = Person::new("Bob".into(), 25);
-    person.add_extra("key1".into(), "val1".into());
-    person.add_extra("key2".into(), "val2".into());
+    person.insert_extra("key1".into(), "val1".into());
+    person.insert_extra("key2".into(), "val2".into());
 
     let mut fields = person.into_fields();
 
