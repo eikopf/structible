@@ -689,30 +689,13 @@ fn generate_setters(
             let vis = &f.vis;
 
             let name_str = name.to_string();
-            if f.is_optional {
-                let inner_ty = &f.inner_ty;
-                let doc = format!("Sets the `{}` value. Pass `None` to remove.", name_str);
-                quote! {
-                    #[doc = #doc]
-                    #vis fn #setter_name(&mut self, value: Option<#inner_ty>) {
-                        match value {
-                            Some(v) => {
-                                ::structible::BackingMap::insert(&mut self.inner, #field_enum::#variant, #value_enum::#variant(v));
-                            }
-                            None => {
-                                ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant);
-                            }
-                        }
-                    }
-                }
-            } else {
-                let ty = &f.ty;
-                let doc = format!("Sets the `{}` value.", name_str);
-                quote! {
-                    #[doc = #doc]
-                    #vis fn #setter_name(&mut self, value: #ty) {
-                        ::structible::BackingMap::insert(&mut self.inner, #field_enum::#variant, #value_enum::#variant(value));
-                    }
+            let doc = format!("Sets the `{}` value.", name_str);
+            // Use inner_ty for optional fields, ty for required fields
+            let value_ty = if f.is_optional { &f.inner_ty } else { &f.ty };
+            quote! {
+                #[doc = #doc]
+                #vis fn #setter_name(&mut self, value: #value_ty) {
+                    ::structible::BackingMap::insert(&mut self.inner, #field_enum::#variant, #value_enum::#variant(value));
                 }
             }
         })

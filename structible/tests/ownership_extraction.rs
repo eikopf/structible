@@ -10,7 +10,7 @@ pub struct Person {
 #[test]
 fn test_into_fields_all_present() {
     let mut person = Person::new("Alice".into(), 30);
-    person.set_email(Some("alice@example.com".into()));
+    person.set_email("alice@example.com".into());
 
     let mut fields = person.into_fields();
 
@@ -37,7 +37,7 @@ fn test_into_fields_optional_missing() {
 #[test]
 fn test_take_fields_individually() {
     let mut person = Person::new("Charlie".into(), 40);
-    person.set_email(Some("charlie@example.com".into()));
+    person.set_email("charlie@example.com".into());
 
     let mut fields = person.into_fields();
 
@@ -70,7 +70,7 @@ fn test_take_returns_none_after_first_take() {
 #[test]
 fn test_take_optional_field_present() {
     let mut person = Person::new("Eve".into(), 28);
-    person.set_email(Some("eve@example.com".into()));
+    person.set_email("eve@example.com".into());
 
     let mut fields = person.into_fields();
 
@@ -98,7 +98,7 @@ pub struct Container<T> {
 #[test]
 fn test_generic_into_fields() {
     let mut container = Container::new(42i32);
-    container.set_label(Some("answer".into()));
+    container.set_label("answer".into());
 
     let mut fields = container.into_fields();
 
@@ -109,7 +109,7 @@ fn test_generic_into_fields() {
 #[test]
 fn test_generic_take_methods() {
     let mut container = Container::new(vec![1, 2, 3]);
-    container.set_label(Some("test".into()));
+    container.set_label("test".into());
 
     let mut fields = container.into_fields();
 
@@ -182,7 +182,7 @@ mod visibility_test {
     #[test]
     fn test_fields_take_visibility() {
         let mut item = MixedVisibility::new("hello".into(), 42);
-        item.set_private_field(Some(true));
+        item.set_private_field(true);
 
         let mut fields = item.into_fields();
 
