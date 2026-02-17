@@ -65,7 +65,6 @@ Into:
    - Mutable getters: `<field>_mut()` - returns `&mut T` for required, `Option<&mut T>` for optional
    - Setters: `set_<field>(value)` - takes `T` (inner type for optional fields)
    - Removers: `remove_<field>()` - optional fields only, returns `Option<T>`
-   - `take_<field>()` - optional fields only, removes and returns `Option<T>`
    - `into_fields()` - consumes struct, returns companion struct for extracting all fields
    - `len()` and `is_empty()` (opt-in via `with_len`)
 6. Generated methods on `PersonFields` companion struct:
@@ -111,8 +110,7 @@ When a field has `#[structible(key = KeyType)]`, it becomes a catch-all for unkn
 - Optional fields (`Option<T>`) are stored without the `Option` wrapper; presence/absence in the map represents `Some`/`None`
 - Required field getters/mutable getters panic if the field is missing (invariant violation)
 - Setters for both required and optional fields take the value directly (`T`); use `remove_*` to clear optional fields
-- `take_*` methods on main struct are only for optional fields to prevent invalid state; use `into_fields()` to extract required field ownership
-- The `Fields` companion struct has `take_*` for ALL fields, returning `Option<T>` (required fields should always be `Some` if struct was valid)
+- The `Fields` companion struct has `take_*` for ALL fields, returning `Option<T>` (required fields should always be `Some` if struct was valid); use `into_fields()` to extract ownership
 - `len()` and `is_empty()` are opt-in via `#[structible(with_len)]` to avoid conflicts with user-defined methods
 - The field enum derives `Copy` only when there's no unknown field (unknown keys may not be `Copy`)
 - Unknown fields require the `IterableMap` trait for iteration support

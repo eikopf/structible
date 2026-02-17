@@ -445,7 +445,6 @@ pub fn generate_impl(
     let getters_mut = generate_getters_mut(struct_name, fields, generics);
     let setters = generate_setters(struct_name, fields, generics);
     let removers = generate_removers(struct_name, fields, generics);
-    let take_methods = generate_take_methods(struct_name, fields, generics);
     let into_fields = generate_into_fields(struct_name, fields, config, generics);
     let unknown_methods = generate_unknown_field_methods(struct_name, fields, generics);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -473,7 +472,6 @@ pub fn generate_impl(
             #(#getters_mut)*
             #(#setters)*
             #(#removers)*
-            #(#take_methods)*
             #into_fields
             #unknown_methods
             #len_methods
@@ -829,41 +827,6 @@ fn generate_removers(
             quote! {
                 /// Removes the field and returns the value if it was present.
                 #vis fn #remover_name(&mut self) -> Option<#inner_ty> {
-                    match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
-                        Some(#value_enum::#variant(v)) => Some(v),
-                        _ => None,
-                    }
-                }
-            }
-        })
-        .collect()
-}
-
-/// Generate `take_*` methods for extracting owned values from optional fields.
-///
-/// Only generated for optional fields to prevent leaving the struct in an invalid state.
-/// Use `into_fields()` to extract ownership of required fields.
-fn generate_take_methods(
-    struct_name: &Ident,
-    fields: &[FieldInfo],
-    _generics: &Generics,
-) -> Vec<TokenStream> {
-    let field_enum = field_enum_name(struct_name);
-    let value_enum = value_enum_name(struct_name);
-
-    fields
-        .iter()
-        .filter(|f| f.is_optional && !f.is_unknown_field())
-        .map(|f| {
-            let name = &f.name;
-            let take_name = format_ident!("take_{}", name);
-            let variant = to_pascal_case(name);
-            let vis = &f.vis;
-            let inner_ty = &f.inner_ty;
-
-            quote! {
-                /// Removes and returns the field value if present.
-                #vis fn #take_name(&mut self) -> Option<#inner_ty> {
                     match ::structible::BackingMap::remove(&mut self.inner, &#field_enum::#variant) {
                         Some(#value_enum::#variant(v)) => Some(v),
                         _ => None,
