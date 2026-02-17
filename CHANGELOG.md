@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-17
+
 ### Added
 
 - `*_iter_mut()` methods for unknown/extension fields on both the main struct and `Fields` companion struct
+- Field documentation is now passed through to generated methods
+- The `Clone` and `PartialEq` derives can be disabled with `no_clone` and `no_partial_eq`
+
+### Changed
+
+- **Breaking:** Renamed `add_*` to `insert_*` for unknown/extension field insertion methods
+- **Breaking:** Removed redundant `take_*` methods from the main struct (use `into_fields()` then `take_*` instead)
+
+### Fixed
+
+- Corrected documentation for optional field setters (they accept `T`, not `Option<T>`)
 
 ## [0.3.0] - 2026-02-17
 
