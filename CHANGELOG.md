@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `*_iter_mut()` methods for unknown/extension fields on both the main struct and `Fields` companion struct
+
 ## [0.3.0] - 2026-02-17
 
 ### Changed
