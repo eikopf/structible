@@ -433,9 +433,12 @@ fn generate_getters(
 
             let vis = &f.vis;
 
+            let name_str = name.to_string();
             if f.is_optional {
                 let inner_ty = &f.inner_ty;
+                let doc = format!("Returns the `{}` value if present.", name_str);
                 quote! {
+                    #[doc = #doc]
                     #vis fn #getter_name(&self) -> Option<&#inner_ty> {
                         match ::structible::BackingMap::get(&self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => Some(v),
@@ -445,7 +448,9 @@ fn generate_getters(
                 }
             } else {
                 let ty = &f.ty;
+                let doc = format!("Returns a reference to the `{}` value.", name_str);
                 quote! {
+                    #[doc = #doc]
                     #vis fn #getter_name(&self) -> &#ty {
                         match ::structible::BackingMap::get(&self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => v,
@@ -479,9 +484,12 @@ fn generate_getters_mut(
             let variant = to_pascal_case(name);
             let vis = &f.vis;
 
+            let name_str = name.to_string();
             if f.is_optional {
                 let inner_ty = &f.inner_ty;
+                let doc = format!("Returns a mutable reference to the `{}` value if present.", name_str);
                 quote! {
+                    #[doc = #doc]
                     #vis fn #getter_mut_name(&mut self) -> Option<&mut #inner_ty> {
                         match ::structible::BackingMap::get_mut(&mut self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => Some(v),
@@ -491,7 +499,9 @@ fn generate_getters_mut(
                 }
             } else {
                 let ty = &f.ty;
+                let doc = format!("Returns a mutable reference to the `{}` value.", name_str);
                 quote! {
+                    #[doc = #doc]
                     #vis fn #getter_mut_name(&mut self) -> &mut #ty {
                         match ::structible::BackingMap::get_mut(&mut self.inner, &#field_enum::#variant) {
                             Some(#value_enum::#variant(v)) => v,
@@ -525,9 +535,12 @@ fn generate_setters(
             let variant = to_pascal_case(name);
             let vis = &f.vis;
 
+            let name_str = name.to_string();
             if f.is_optional {
                 let inner_ty = &f.inner_ty;
+                let doc = format!("Sets the `{}` value. Pass `None` to remove.", name_str);
                 quote! {
+                    #[doc = #doc]
                     #vis fn #setter_name(&mut self, value: Option<#inner_ty>) {
                         match value {
                             Some(v) => {
@@ -541,7 +554,9 @@ fn generate_setters(
                 }
             } else {
                 let ty = &f.ty;
+                let doc = format!("Sets the `{}` value.", name_str);
                 quote! {
+                    #[doc = #doc]
                     #vis fn #setter_name(&mut self, value: #ty) {
                         ::structible::BackingMap::insert(&mut self.inner, #field_enum::#variant, #value_enum::#variant(value));
                     }
