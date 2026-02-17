@@ -99,10 +99,12 @@ When a field has `#[structible(key = KeyType)]`, it becomes a catch-all for unkn
 - `<field>_mut(&key)` - Mutable access by borrowed key
 - `remove_<field>(&key)` - Remove and return value
 - `<field>_iter()` - Iterate over all unknown fields as `(&K, &V)` pairs
+- `<field>_iter_mut()` - Mutably iterate over all unknown fields as `(&K, &mut V)` pairs
 
 **Generated methods on Fields companion struct:**
 - `take_<field>(&key)` - Extract value for a specific unknown key
 - `<field>_iter()` - Iterate unknown fields
+- `<field>_iter_mut()` - Mutably iterate unknown fields
 - `drain_<field>()` - Drain all unknown fields into a new map
 
 ### Key Design Decisions
