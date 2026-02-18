@@ -1,6 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Attribute, GenericArgument, PathArguments, Type};
+use syn::{Attribute, GenericArgument, Ident, PathArguments, Type};
+use syn::visit::Visit;
 
 /// Extracts doc comment strings from a list of attributes.
 ///
@@ -39,6 +40,39 @@ pub fn format_method_doc(auto_doc: &str, field_docs: &[String]) -> TokenStream {
         }
         quote! { #[doc = #full_doc] }
     }
+}
+
+/// Returns `true` if `ty` syntactically references any of the given type-parameter idents.
+///
+/// This is used when deciding whether an explicit trait bound on `ty` is required in a
+/// generated impl. Types that don't mention any of the struct's type parameters (e.g.
+/// plain references like `&'a str` or concrete types like `String`) are already covered
+/// by blanket impls in the standard library, so adding explicit bounds for them would
+/// cause E0283 ambiguity errors.
+///
+/// Only checks TYPE parameters; const parameters are intentionally excluded because they
+/// don't appear as `syn::Ident` in a `syn::Type` (they appear in const expressions).
+pub fn type_mentions_type_param(ty: &Type, type_params: &[&Ident]) -> bool {
+    if type_params.is_empty() {
+        return false;
+    }
+
+    struct Checker<'a> {
+        type_params: &'a [&'a Ident],
+        found: bool,
+    }
+
+    impl<'a, 'ast> Visit<'ast> for Checker<'a> {
+        fn visit_ident(&mut self, ident: &'ast Ident) {
+            if self.type_params.contains(&ident) {
+                self.found = true;
+            }
+        }
+    }
+
+    let mut checker = Checker { type_params, found: false };
+    checker.visit_type(ty);
+    checker.found
 }
 
 /// If `ty` is `Option<T>`, returns `Some(T)`. Otherwise returns `None`.

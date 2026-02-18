@@ -3,7 +3,7 @@ use quote::{format_ident, quote};
 use syn::{Attribute, Generics, Ident, Visibility};
 
 use crate::parse::{FieldInfo, StructibleConfig};
-use crate::util::{extract_doc_comments, format_method_doc, to_pascal_case};
+use crate::util::{extract_doc_comments, format_method_doc, to_pascal_case, type_mentions_type_param};
 
 /// Returns the hidden field enum name for a struct.
 pub fn field_enum_name(struct_name: &Ident) -> Ident {
@@ -74,7 +74,7 @@ pub fn generate_value_enum(
     generics: &Generics,
 ) -> TokenStream {
     let enum_name = value_enum_name(struct_name);
-    let (impl_generics, _ty_generics, where_clause) = generics.split_for_impl();
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // Find unknown field if present
     let unknown_field = fields.iter().find(|f| f.is_unknown_field());
@@ -96,25 +96,146 @@ pub fn generate_value_enum(
         variants.push(quote! { Unknown(#value_ty) });
     }
 
-    // Build derive list based on config
-    let clone_derive = if config.no_clone {
-        quote! {}
+    let total_variants = variants.len();
+
+    // Collect inner types that mention at least one of the struct's type parameters.
+    // We only add explicit trait bounds for these types; types without any type param
+    // reference (e.g. `&'a str`, `String`) are already covered by blanket impls and
+    // adding explicit bounds for them would cause E0283 ambiguity errors.
+    let type_param_idents: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
+    let inner_types: Vec<_> = fields
+        .iter()
+        .map(|f| &f.inner_ty)
+        .filter(|ty| type_mentions_type_param(ty, &type_param_idents))
+        .collect();
+
+    // Known (non-unknown) fields for match arms
+    let known_fields: Vec<_> = fields.iter().filter(|f| !f.is_unknown_field()).collect();
+
+    // Debug match arms
+    let debug_arms: Vec<_> = known_fields
+        .iter()
+        .map(|f| {
+            let variant = to_pascal_case(&f.name);
+            quote! { Self::#variant(v) => ::std::fmt::Debug::fmt(v, f) }
+        })
+        .collect();
+    let unknown_debug_arm: Vec<_> = unknown_field
+        .iter()
+        .map(|_| quote! { Self::Unknown(v) => ::std::fmt::Debug::fmt(v, f) })
+        .collect();
+
+    // Debug where clause
+    let debug_bounds = quote! { #(#inner_types: ::std::fmt::Debug,)* };
+    let debug_where = if let Some(wc) = where_clause {
+        let existing = &wc.predicates;
+        quote! { where #debug_bounds #existing }
+    } else if !inner_types.is_empty() {
+        quote! { where #debug_bounds }
     } else {
-        quote! { Clone, }
+        quote! {}
     };
-    let partial_eq_derive = if config.no_partial_eq {
-        quote! {}
+
+    let debug_impl = quote! {
+        impl #impl_generics ::std::fmt::Debug for #enum_name #ty_generics #debug_where {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                match self {
+                    #(#debug_arms,)*
+                    #(#unknown_debug_arm,)*
+                }
+            }
+        }
+    };
+
+    // Clone impl
+    let clone_impl = if !config.no_clone {
+        let clone_arms: Vec<_> = known_fields
+            .iter()
+            .map(|f| {
+                let variant = to_pascal_case(&f.name);
+                quote! { Self::#variant(v) => Self::#variant(::std::clone::Clone::clone(v)) }
+            })
+            .collect();
+        let unknown_clone_arm: Vec<_> = unknown_field
+            .iter()
+            .map(|_| {
+                quote! { Self::Unknown(v) => Self::Unknown(::std::clone::Clone::clone(v)) }
+            })
+            .collect();
+        let clone_bounds = quote! { #(#inner_types: ::std::clone::Clone,)* };
+        let clone_where = if let Some(wc) = where_clause {
+            let existing = &wc.predicates;
+            quote! { where #clone_bounds #existing }
+        } else if !inner_types.is_empty() {
+            quote! { where #clone_bounds }
+        } else {
+            quote! {}
+        };
+        quote! {
+            impl #impl_generics ::std::clone::Clone for #enum_name #ty_generics #clone_where {
+                fn clone(&self) -> Self {
+                    match self {
+                        #(#clone_arms,)*
+                        #(#unknown_clone_arm,)*
+                    }
+                }
+            }
+        }
     } else {
-        quote! { PartialEq }
+        quote! {}
+    };
+
+    // PartialEq impl
+    let partial_eq_impl = if !config.no_partial_eq {
+        let eq_arms: Vec<_> = known_fields
+            .iter()
+            .map(|f| {
+                let variant = to_pascal_case(&f.name);
+                quote! { (Self::#variant(a), Self::#variant(b)) => a == b }
+            })
+            .collect();
+        let unknown_eq_arm: Vec<_> = unknown_field
+            .iter()
+            .map(|_| quote! { (Self::Unknown(a), Self::Unknown(b)) => a == b })
+            .collect();
+        let catchall = if total_variants > 1 {
+            quote! { _ => false, }
+        } else {
+            quote! {}
+        };
+        let eq_bounds = quote! { #(#inner_types: ::std::cmp::PartialEq,)* };
+        let eq_where = if let Some(wc) = where_clause {
+            let existing = &wc.predicates;
+            quote! { where #eq_bounds #existing }
+        } else if !inner_types.is_empty() {
+            quote! { where #eq_bounds }
+        } else {
+            quote! {}
+        };
+        quote! {
+            impl #impl_generics ::std::cmp::PartialEq for #enum_name #ty_generics #eq_where {
+                fn eq(&self, other: &Self) -> bool {
+                    match (self, other) {
+                        #(#eq_arms,)*
+                        #(#unknown_eq_arm,)*
+                        #catchall
+                    }
+                }
+            }
+        }
+    } else {
+        quote! {}
     };
 
     quote! {
         #[doc(hidden)]
         #[allow(non_camel_case_types, clippy::enum_variant_names)]
-        #[derive(Debug, #clone_derive #partial_eq_derive)]
         pub enum #enum_name #impl_generics #where_clause {
             #(#variants),*
         }
+        #debug_impl
+        #clone_impl
+        #partial_eq_impl
     }
 }
 
@@ -136,14 +257,6 @@ pub fn generate_fields_struct(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let map_type = config.backing.to_tokens();
 
-    // Build derive list based on config
-    let derives = match (config.no_clone, config.no_partial_eq) {
-        (true, true) => quote! {},
-        (true, false) => quote! { #[derive(PartialEq)] },
-        (false, true) => quote! { #[derive(Clone)] },
-        (false, false) => quote! { #[derive(Clone, PartialEq)] },
-    };
-
     quote! {
         /// Companion struct for extracting owned values from fields.
         ///
@@ -153,7 +266,6 @@ pub fn generate_fields_struct(
         /// struct was valid).
         ///
         /// This is a "reverse builder" pattern - fields can only be extracted, not inserted.
-        #derives
         #vis struct #fields_struct #impl_generics #where_clause {
             inner: #map_type<#field_enum, #value_enum #ty_generics>,
         }
@@ -330,20 +442,144 @@ pub fn generate_struct(
     let map_type = config.backing.to_tokens();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    // Build derive list based on config
-    let derives = match (config.no_clone, config.no_partial_eq) {
-        (true, true) => quote! {},
-        (true, false) => quote! { #[derive(PartialEq)] },
-        (false, true) => quote! { #[derive(Clone)] },
-        (false, false) => quote! { #[derive(Clone, PartialEq)] },
-    };
-
     quote! {
-        #derives
         #(#attrs)*
         #vis struct #struct_name #impl_generics #where_clause {
             inner: #map_type<#field_enum, #value_enum #ty_generics>,
         }
+    }
+}
+
+/// Generate `Clone` and `PartialEq` impls for the main struct.
+///
+/// Uses bounds on field inner types rather than type params, so that associated
+/// types (e.g. `V::String`) are correctly bounded rather than requiring `V: Clone`.
+pub fn generate_struct_trait_impls(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    config: &StructibleConfig,
+    generics: &Generics,
+) -> TokenStream {
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let type_param_idents: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
+    let inner_types: Vec<_> = fields
+        .iter()
+        .map(|f| &f.inner_ty)
+        .filter(|ty| type_mentions_type_param(ty, &type_param_idents))
+        .collect();
+
+    let clone_impl = if !config.no_clone {
+        let clone_bounds = quote! { #(#inner_types: ::std::clone::Clone,)* };
+        let clone_where = if let Some(wc) = where_clause {
+            let existing = &wc.predicates;
+            quote! { where #clone_bounds #existing }
+        } else if !inner_types.is_empty() {
+            quote! { where #clone_bounds }
+        } else {
+            quote! {}
+        };
+        quote! {
+            impl #impl_generics ::std::clone::Clone for #struct_name #ty_generics #clone_where {
+                fn clone(&self) -> Self {
+                    Self { inner: ::std::clone::Clone::clone(&self.inner) }
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let partial_eq_impl = if !config.no_partial_eq {
+        let eq_bounds = quote! { #(#inner_types: ::std::cmp::PartialEq,)* };
+        let eq_where = if let Some(wc) = where_clause {
+            let existing = &wc.predicates;
+            quote! { where #eq_bounds #existing }
+        } else if !inner_types.is_empty() {
+            quote! { where #eq_bounds }
+        } else {
+            quote! {}
+        };
+        quote! {
+            impl #impl_generics ::std::cmp::PartialEq for #struct_name #ty_generics #eq_where {
+                fn eq(&self, other: &Self) -> bool {
+                    self.inner == other.inner
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    quote! {
+        #clone_impl
+        #partial_eq_impl
+    }
+}
+
+/// Generate `Clone` and `PartialEq` impls for the Fields companion struct.
+///
+/// Uses bounds on field inner types rather than type params, so that associated
+/// types (e.g. `V::String`) are correctly bounded rather than requiring `V: Clone`.
+pub fn generate_fields_struct_trait_impls(
+    struct_name: &Ident,
+    fields: &[FieldInfo],
+    config: &StructibleConfig,
+    generics: &Generics,
+) -> TokenStream {
+    let fields_struct = fields_struct_name(struct_name);
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let type_param_idents: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
+    let inner_types: Vec<_> = fields
+        .iter()
+        .map(|f| &f.inner_ty)
+        .filter(|ty| type_mentions_type_param(ty, &type_param_idents))
+        .collect();
+
+    let clone_impl = if !config.no_clone {
+        let clone_bounds = quote! { #(#inner_types: ::std::clone::Clone,)* };
+        let clone_where = if let Some(wc) = where_clause {
+            let existing = &wc.predicates;
+            quote! { where #clone_bounds #existing }
+        } else if !inner_types.is_empty() {
+            quote! { where #clone_bounds }
+        } else {
+            quote! {}
+        };
+        quote! {
+            impl #impl_generics ::std::clone::Clone for #fields_struct #ty_generics #clone_where {
+                fn clone(&self) -> Self {
+                    Self { inner: ::std::clone::Clone::clone(&self.inner) }
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let partial_eq_impl = if !config.no_partial_eq {
+        let eq_bounds = quote! { #(#inner_types: ::std::cmp::PartialEq,)* };
+        let eq_where = if let Some(wc) = where_clause {
+            let existing = &wc.predicates;
+            quote! { where #eq_bounds #existing }
+        } else if !inner_types.is_empty() {
+            quote! { where #eq_bounds }
+        } else {
+            quote! {}
+        };
+        quote! {
+            impl #impl_generics ::std::cmp::PartialEq for #fields_struct #ty_generics #eq_where {
+                fn eq(&self, other: &Self) -> bool {
+                    self.inner == other.inner
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    quote! {
+        #clone_impl
+        #partial_eq_impl
     }
 }
 
@@ -359,23 +595,25 @@ pub fn generate_debug_impl(
     let value_enum = value_enum_name(struct_name);
     let struct_name_str = struct_name.to_string();
 
-    // Add Debug bounds to all type parameters
-    let type_params: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    // Build additional Debug bounds for type parameters
-    let debug_bounds = if type_params.is_empty() {
-        quote! {}
-    } else {
-        quote! { #(#type_params: ::std::fmt::Debug,)* }
-    };
+    // Add Debug bounds on field inner types that reference type parameters, so that
+    // associated types (e.g. V::String) are correctly bounded rather than requiring
+    // `V: Debug`. Types without any type param reference (e.g. `&'a str`) already
+    // have blanket impls and must be excluded to avoid E0283 ambiguity.
+    let type_param_idents: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
+    let inner_types: Vec<_> = fields
+        .iter()
+        .map(|f| &f.inner_ty)
+        .filter(|ty| type_mentions_type_param(ty, &type_param_idents))
+        .collect();
+    let debug_bounds = quote! { #(#inner_types: ::std::fmt::Debug,)* };
 
     // Combine existing where clause with Debug bounds
     let combined_where = if let Some(wc) = where_clause {
-        // Existing where clause - extract predicates and add Debug bounds
         let existing_predicates = &wc.predicates;
         quote! { where #debug_bounds #existing_predicates }
-    } else if !type_params.is_empty() {
+    } else if !inner_types.is_empty() {
         quote! { where #debug_bounds }
     } else {
         quote! {}
@@ -436,23 +674,25 @@ pub fn generate_fields_debug_impl(
     let value_enum = value_enum_name(struct_name);
     let struct_name_str = fields_struct.to_string();
 
-    // Add Debug bounds to all type parameters
-    let type_params: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    // Build additional Debug bounds for type parameters
-    let debug_bounds = if type_params.is_empty() {
-        quote! {}
-    } else {
-        quote! { #(#type_params: ::std::fmt::Debug,)* }
-    };
+    // Add Debug bounds on field inner types that reference type parameters, so that
+    // associated types (e.g. V::String) are correctly bounded rather than requiring
+    // `V: Debug`. Types without any type param reference (e.g. `&'a str`) already
+    // have blanket impls and must be excluded to avoid E0283 ambiguity.
+    let type_param_idents: Vec<_> = generics.type_params().map(|tp| &tp.ident).collect();
+    let inner_types: Vec<_> = fields
+        .iter()
+        .map(|f| &f.inner_ty)
+        .filter(|ty| type_mentions_type_param(ty, &type_param_idents))
+        .collect();
+    let debug_bounds = quote! { #(#inner_types: ::std::fmt::Debug,)* };
 
     // Combine existing where clause with Debug bounds
     let combined_where = if let Some(wc) = where_clause {
-        // Existing where clause - extract predicates and add Debug bounds
         let existing_predicates = &wc.predicates;
         quote! { where #debug_bounds #existing_predicates }
-    } else if !type_params.is_empty() {
+    } else if !inner_types.is_empty() {
         quote! { where #debug_bounds }
     } else {
         quote! {}
