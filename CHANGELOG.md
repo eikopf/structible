@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-18
+
+### Fixed
+
+- Generated `Debug`, `Clone`, and `PartialEq` impls now correctly handle structs with associated type fields (e.g. `V::String` where `V: JsonValue`); bounds are now placed on the actual field types rather than bare type parameters (fixes [#27](https://github.com/eikopf/structible/issues/27))
+
 ## [0.4.0] - 2026-02-17
 
 ### Added

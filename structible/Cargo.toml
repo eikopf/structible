@@ -10,4 +10,4 @@ keywords = ["proc-macro", "struct", "map", "hashmap", "derive"]
 categories = ["rust-patterns", "data-structures"]
 
 [dependencies]
-structible-macros = { version = "0.4.0", path = "../structible-macros" }
+structible-macros = { version = "0.5.0", path = "../structible-macros" }
