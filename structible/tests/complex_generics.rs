@@ -1,6 +1,36 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+// Regression test for issue #27: associated types in field types should work with
+// generated Debug, Clone, and PartialEq impls.
+trait JsonValue {
+    type String: Clone + PartialEq + Debug + Default;
+    type Array: Clone + PartialEq + Debug + Default;
+    type Object: Clone + PartialEq + Debug + Default;
+}
+
+#[structible]
+struct Table<V: JsonValue> {
+    pub string: V::String,
+    pub opt_string: Option<V::String>,
+    pub object: V::Object,
+}
+
+struct MyJson;
+impl JsonValue for MyJson {
+    type String = std::string::String;
+    type Array = Vec<i32>;
+    type Object = std::collections::HashMap<std::string::String, i32>;
+}
+
+#[test]
+fn test_associated_type_fields() {
+    let t = Table::<MyJson>::new(Default::default(), Default::default());
+    let cloned = t.clone();
+    assert_eq!(t, cloned);
+    let _ = format!("{:?}", t);
+}
+
 use structible::structible;
 
 #[structible]
