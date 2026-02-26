@@ -23,6 +23,12 @@ assert_eq!(person.email(), Some(&"alice@example.com".into()));
 assert_eq!(*person.age(), 31);
 ```
 
+## Motivation
+
+The size of a struct on the stack grows with the number of fields. In the vast majority of cases, this is fine, but it causes a problem in the specific case where (1) the number of fields is large and (2) only a small number of those fields are likely to contain non-trivial data at any given time. The most obvious example is a JSON schema where most fields are optional; naively converting the schema into a Rust struct will produce a type that wastes significant memory. This is a significant problem for JSON-based protocols like JSCalendar.
+
+The solution that `structible` provides is fairly simple: the struct is converted into a map, with keys corresponding to fields. Importantly, fields with optional values are omitted if their value is set to `None`, which reduces the total memory footprint of the type. Together with the generated methods, the result is a type that behaves very similarly to the original struct but whose stack size is independent of the number of fields.
+
 ## Quick Reference
 
 ### Struct Attributes
